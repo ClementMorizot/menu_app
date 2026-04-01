@@ -1,0 +1,44 @@
+@startuml architecture
+allow_mixing
+skinparam linetype ortho
+left to right direction
+title Architecture en couches - Génération de Menu (V0.1)
+
+package "Application Layer" {
+  class MenuOrchestrator
+  class CreneauxGenerator
+}
+
+package "Domain Layer" {
+  class Menu
+  class Bloc
+  class Creneau
+  class MenuPlanner
+  class MenuEditor
+  class Recette
+  class MenuGenerator
+  interface RecipeRepository
+}
+
+package "Infrastructure Layer" {
+  class SqlRecipeRepository
+}
+
+package "Data Layer" {
+  database "PostgreSQL Database" as database
+}
+
+MenuOrchestrator -down-> MenuPlanner
+MenuOrchestrator -down-> MenuEditor
+MenuOrchestrator -down-> MenuGenerator
+MenuOrchestrator -down-> CreneauxGenerator
+
+MenuGenerator -down-> RecipeRepository
+SqlRecipeRepository .down.|> RecipeRepository
+SqlRecipeRepository -down-> database
+
+Menu -[hidden]-> Bloc
+Menu -[hidden]-> Creneau
+Bloc -[hidden]-> Recette
+
+@enduml

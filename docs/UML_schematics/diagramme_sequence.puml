@@ -1,0 +1,40 @@
+@startuml diagramme de séquence
+title Sequence - Generation d'un menu V0.1
+
+actor User
+
+participant "main.py" as Main
+participant "MenuOrchestrator" as Orchestrator
+participant "CreneauxGenerator" as CreneauxGen
+participant "MenuGenerator" as Generator
+participant "RecipeRepository" as Repository
+participant "MenuPlanner" as Planner
+participant "Menu" as Menu
+
+User -> Main : lancer l'application
+Main -> Orchestrator : generer_menu()
+
+Orchestrator -> CreneauxGen : generer_liste_creneaux(14)
+CreneauxGen --> Orchestrator : List<Creneau>
+
+Orchestrator -> Generator : creer_liste_blocs(14)
+Generator -> Repository : list_recipes()
+Repository --> Generator : List<Recette>
+Generator --> Orchestrator : List<Bloc>
+
+Orchestrator -> Planner : planifier(creneaux, blocs)
+create Menu
+Planner -> Menu : <<create>>
+
+loop pour chaque bloc et ses creneaux cibles
+    Planner -> Menu : ajouter_bloc(creneau, bloc)
+end
+
+Planner -> Menu : est_stable()
+Menu --> Planner : True
+Planner --> Orchestrator : Menu
+
+Orchestrator --> Main : MenuOrchestratorResult
+Main -> Main : afficher_menu(menu)\nou afficher_erreur(message)
+
+@enduml
