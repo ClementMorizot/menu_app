@@ -1,90 +1,87 @@
-#domain/menu.py
+# domain/menu.py
 
 from typing import Dict
-from .creneau import Creneau
-from .bloc import Bloc
+from backend.domain.timeslot import TimeSlot
+from backend.domain.mealblock import MealBlock
+
 
 class Menu:
     def __init__(self):
-        self._planning: Dict[Creneau, Bloc] = {}
-    
+        self._planning: Dict[TimeSlot, MealBlock] = {}
+
     @property
-    def planning(self) -> Dict[Creneau, Bloc]:
+    def planning(self) -> Dict[TimeSlot, MealBlock]:
         return self._planning.copy()
-    
-    def ajouter_bloc(self, creneau: Creneau, bloc: Bloc):
-        if creneau in self._planning:
-            raise ValueError(f"Le créneau est déjà planifié.")
-        self._planning[creneau] = bloc
 
-    def remplacer_bloc(self, creneau: Creneau, nouveau_bloc: Bloc):
-        if creneau not in self._planning:
-            raise ValueError(f"Créneau non planifié")
+    def add_mealblock(self, timeslot: TimeSlot, mealblock: MealBlock) -> None:
+        if timeslot in self._planning:
+            raise ValueError("Timeslot already planned.")
+        self._planning[timeslot] = mealblock
 
-        self._planning[creneau] = nouveau_bloc
+    def replace_mealblock(self, timeslot: TimeSlot, new_mealblock: MealBlock) -> None:
+        if timeslot not in self._planning:
+            raise ValueError("Timeslot not planned")
 
-    def est_planifie(self, creneau: Creneau) -> bool:
-        return creneau in self._planning
-    
-    def supprimer_bloc(self, creneau: Creneau) -> None:
-        if creneau not in self._planning:
-            raise ValueError(f"Créneau non planifié")
-        del self._planning[creneau]
-        
-    def obtenir_bloc(self, creneau: Creneau) -> Bloc:
-        if creneau not in self._planning:
-            raise ValueError(f"Créneau non planifié")
-        return self._planning[creneau]
-    
-    def contient_bloc(self, bloc: Bloc) -> bool:
-        return bloc in self._planning.values()
-    
-    def creneaux_du_bloc(self, bloc: Bloc) -> list[Creneau]:
-        creneaux = []
-        for creneau, b in self._planning.items():
-            if b == bloc:
-                creneaux.append(creneau)
-        return creneaux
+        self._planning[timeslot] = new_mealblock
 
-    def creneaux_planifies(self) -> list[Creneau]:
-        creneaux = []
+    def is_planned(self, timeslot: TimeSlot) -> bool:
+        return timeslot in self._planning
+
+    def delete_mealblock(self, timeslot: TimeSlot) -> None:
+        if timeslot not in self._planning:
+            raise ValueError("Timeslot not planned")
+        del self._planning[timeslot]
+
+    def get_mealblock(self, timeslot: TimeSlot) -> MealBlock:
+        if timeslot not in self._planning:
+            raise ValueError("Timeslot not planned")
+        return self._planning[timeslot]
+
+    def has_mealblock(self, mealblock: MealBlock) -> bool:
+        return mealblock in self._planning.values()
+
+    def timeslots_for(self, mealblock: MealBlock) -> list[TimeSlot]:
+        timeslots = []
+        for timeslot, b in self._planning.items():
+            if b == mealblock:
+                timeslots.append(timeslot)
+        return timeslots
+
+    def planned_timeslots(self) -> list[TimeSlot]:
+        timeslots = []
         for c in self._planning.keys():
-            creneaux.append(c)
-        
-        return creneaux
-    
-    def est_complet(self, nombre_creneaux_attendus: int) -> bool:
-        return len(self._planning) == nombre_creneaux_attendus
-    
-    def peut_remplacer(self, creneau:Creneau, nouveau_bloc : Bloc) -> bool:
-        if not self.est_planifie(creneau):
+            timeslots.append(c)
+
+        return timeslots
+
+    def is_complete(self, expected_timeslots: int) -> bool:
+        return len(self._planning) == expected_timeslots
+
+    def can_replace(self, timeslot: TimeSlot, new_mealblock: MealBlock) -> bool:
+        if not self.is_planned(timeslot):
             return False
-        if self.contient_bloc(nouveau_bloc):
+        if self.has_mealblock(new_mealblock):
             return False
         return True
-    
-    def verifier_coherence_longueur(self) -> bool:
-        for bloc in self.blocs_uniques():
-            if len(self.creneaux_du_bloc(bloc)) != bloc.longueur:
+
+    def is_length_consistent(self) -> bool:
+        for mealblock in self.get_unique_mealblocks():
+            if len(self.timeslots_for(mealblock)) != mealblock.length:
                 return False
         return True
-    
-    def blocs_uniques(self) -> list[Bloc]:
-        blocs_uniques = []
-        for bloc in self._planning.values():
-            if bloc not in blocs_uniques:
-                blocs_uniques.append(bloc)
 
-        return blocs_uniques
-    
-    def nombre_total_repas(self) -> int:
-        somme_total = 0
-        blocs = self.blocs_uniques()
-        for bloc in blocs:
-            somme_total += bloc.longueur
-        
-        return somme_total
+    def get_unique_mealblocks(self) -> list[MealBlock]:
+        unique_mealblocks = []
+        for mealblock in self._planning.values():
+            if mealblock not in unique_mealblocks:
+                unique_mealblocks.append(mealblock)
 
-    def est_stable(self) -> bool:
-        return (len(self._planning) == self.nombre_total_repas()) and self.verifier_coherence_longueur()
-    
+        return unique_mealblocks
+
+    def total_meals(self) -> int:
+        return sum(mealblock.length for mealblock in self.get_unique_mealblocks())
+
+    def is_stable(self) -> bool:
+        return (
+            len(self._planning) == self.total_meals()
+        ) and self.is_length_consistent()

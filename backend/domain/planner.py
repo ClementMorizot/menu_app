@@ -1,35 +1,34 @@
-from .bloc import Bloc
-from .creneau import Creneau
-from .menu import Menu
+from backend.domain.mealblock import MealBlock
+from backend.domain.timeslot import TimeSlot
+from backend.domain.menu import Menu
+
 
 class MenuPlanner:
-    def __init__(self) -> None:
-        pass
+    def plan(self, timeslots: list[TimeSlot], mealblocks: list[MealBlock]) -> Menu:
+        timeslots_count = len(timeslots)
+        meals_count = sum(mealblock.length for mealblock in mealblocks)
 
-    def planifier(self, creneaux: list[Creneau], blocs: list[Bloc]) -> Menu:
-        nb_creneaux = len(creneaux)
-        nb_repas = sum(bloc.longueur for bloc in blocs)
-
-        if nb_repas != nb_creneaux:
+        if meals_count != timeslots_count:
             raise ValueError(
-                f"Incohérence: somme des longueurs de blocs = {nb_repas} "
-                f"mais nombre de créneaux = {nb_creneaux}."
+                f"Mealblock lengths sum to {meals_count}, but {timeslots_count} timeslots were provided."
             )
 
-        for bloc in blocs:
-            if bloc.longueur <= 0:
-                raise ValueError(f"Bloc invalide: longueur={bloc.longueur} (doit être > 0).")
+        for mealblock in mealblocks:
+            if mealblock.length <= 0:
+                raise ValueError(
+                    f"Invalid mealblock length: {mealblock.length}. Length must be greater than 0."
+                )
 
         menu = Menu()
         i = 0
 
-        for bloc in blocs:
-            for _ in range(bloc.longueur):
-                # i est garanti valide grâce au check nb_repas == nb_creneaux
-                menu.ajouter_bloc(creneaux[i], bloc)
+        for mealblock in mealblocks:
+            for _ in range(mealblock.length):
+                # i is validated by checking meals_count == timeslots_count
+                menu.add_mealblock(timeslots[i], mealblock)
                 i += 1
 
-        if not menu.est_stable():
-            raise ValueError("Menu instable après planification (invariants violés).")
+        if not menu.is_stable():
+            raise ValueError("Menu is not stable after planning.")
 
         return menu

@@ -1,104 +1,118 @@
-MENU APP (nom non définitif)
+# Menu Generator
 
-Générateur de menus hebdomadaires basé sur les recettes personnelles de l'utilisateur.
+## Introduction
+A backend application that generates weekly menus based on personal recipes. 
+Built using a *Domain-Driven Design (DDD)* architecture, the project focuses on clean separation of concerns, domain modeling, and testable business logic. 
 
-Note:
+This project is part of my transition into software engineering.
 
-The current version of the project uses a mix of French and English naming.
-A full transition to English naming conventions is planned for the next version to improve readability and accessibility.
+## Quick Overview
 
-1. OBJECTIF DU PROJET
+- 3-layer architecture (Domain / Application / Infrastructure)
+- Fully tested domain logic (unit tests with pytest)
+- PostgreSQL integration
+- Designed for extensibility (multi-meal recipes, reroll, future constraints)
 
-Le projet présente un but double : démontrer l'application de multiples technologies et langages en interfaces et répondre à un besoin d'usage. Dans l'objectif de facilité la prise de décision sur les repas de la semaine et la liste des courses associées, cette application utilise les recettes propres de l'utilisateur pour planifier le menu de la semaine. 
-Elle prend en compte : les recettes couvrant plusieurs repas, le besoin de changer une ou plusieurs recettes du menu (absent en v0.1 mais prévu pour la v1). D'autres améliorations sont en attente d'implémentation car l'application a été conçue pour être évolutive. 
+## Project Goal
+- Solve a real-life problem (meal planning and groceries list)
+- Demonstrate clean architecture
+- Build a scalable backend foundation
+- Integrate multiple components (database, domain logic, orchestration)
 
-2. FONCTIONNALITES ACTUELLES
+## Features
+- Store and manage recipes using PostgreSQL
+- Generate a full weekly menu (14 meals)
+- Support multi-meal recipes
+- Deterministic planning logic
 
-- gestion des recettes via une base de données PostgreSQL
-- génération d'un menu hebdomadaire
-- planification sur 14 créneaux ordonnés (dimanche midi à samedi soir)
-- support de recettes multi-repas
-- execution via main.py
-- output dans le terminal
+## Architecture
 
-3. Architecture du projet
+### Domain-Driven Design architecture
+- **Domain Layer**: core business logic (Menu, MealBlock, TimeSlot)
+- **Application Layer**: orchestration (MenuOrchestrator)
+- **Infrastructure Layer**: database access (PostgreSQL)
 
-Architecture en couches inspirée du DDD : 
-- Domain Layer : contient toute la logique métier.
-    - Aggregate Root : Menu
-    - Domain Services : MenuGenerator, MenuPlanner et MenuEditor
-    - Value Objects : Bloc, Creneau, Recette (jusqu'à la V1 seulement)
-- Application Layer : ne contient aucune logique métier. Elle sert de chef d'orchestre pour assembler tous les Value Object du domain grace aux Domain Services. 
-- Infrastruture Layer : ne contient aucune logique métier. Elle fait le lien entre le Domain Layer et la base de données PostgreSQL. 
+### Key design principles
+- Strict separation of concerns
+- Deterministic domain logic
+- Full unit test coverage
 
-Base de données :
-- Recettes stockées en tables
-- Fichier Seed permettant d'utiliser le moteur 
+## Project Structure
+```plaintext
+menu-generator/
+│
+├── backend/
+│   ├── application/
+│   ├── domain/
+│   ├── infrastructure/
+│   ├── tests/
+│   │   ├── application/
+│   │   ├── domain/
+│   │   ├── infrastructure/
+│   │   ├── fakes/
+│   │   └── test_objects/
+│   └── main.py
+│
+├── database/
+│   ├── schema.sql
+│   └── seed.sql
+│
+├── docs/
+│
+├── README.md
+├── pytest.ini
+└── .gitignore
+```
 
-5. Structure du dépôt
+## Setup and Installation
 
-backend/ contient les couches domain, application et infrastructure
-database/ contient les fichiers permettant de créer la base de données et la seed
-frontend/ contiendra l'interface utilisateur (placeholder)
-docs/ contient la documentation technique du projet
+### Prerequisites
+- Python 3.x
+- PostgreSQL
+- psycopg
+- pytest
 
-6. Installation et exécution
+### Set-up
+1. Create a PostgreSQL database
+2. Execute `schema.sql` and `seed.sql`
+3. Configure database credentials in `db_connection.py`
 
-Prérequis : 
-python3
-- dont module pytest
-- dont module psycopg
-tous les fichiers du projet dans son arborescence
-postgreSQL
-
-Installation :
-PostgreSQL actif sur la session utilisateur
-utilisateur a accès à PostgreSQL avec le droit de création et modification d'une base de données
-créer une nouvelle base : psql -c "CREATE DATABASE menu_app_dev;"
-vérifier que client_encoding et server_encoding en UTF8 (important)
-
-Initialisation de la base: 
-\i [chemin d'accès]/database/schema.sql
-\i [chemin d'accès]/database/seed.sql
-
-Lancement
+### Launch
+```bash
 python backend/main.py
+```
 
-Tests
-Actuellement :
-- 48 tests unitaires -> pytest -v
-- 1 test de connexion à la base de données -> python backend/tests/infrastructure/test_db_connection.py
-    - ce test valide la connexion à la base
+## Tests
+49 unit tests are implemented using pytest to validate the domain logic and application behavior.
+```bash
+pytest -v
+```
+1 test validates database connection
 
-7. Etat actuel du projet
+## Current Status
+- Backend fully functional
+- End-to-end menu generation working
+- Console-based interface
+- Core domain validated with tests
 
-Les différentes couches du moteur de génération de menus sont validés en exécution end-to-end. 
-Le point d'entrée actuel est via console.
-La sortie actuelle est via console.
+Limitations:
+- No UI yet
+- Reroll logic lacks input validation at application level
+- No user preferences
 
-La v0.1 représente une maquette fonctionnelle du projet. Elle présente les forces du moteur de génération ainsi que sa capacité d'évolution à travers sa structure stable et saine suivant la logique DDD. 
-Certains compromis V1 seront par la suite abandonner au profit de fonctionnalités plus rigoureuses, par exemple :
-- les recettes sont un Value Object en V1, et deviendront une entité 
-- les erreurs remontent mais sont lissées en 2 grandes catégories : métier et technique
-- il n'y a pas encore de gestion des préférences utilisateur (saison par exemple)
+## Future Improvements
+- User interface
+- Recipe management (complete CRUD flow)
+- Grocery list generation
+- Generation constraints (seasonality, user preferences)
+- Advanced planning strategies
 
-8. Evolutions prévues
+## What I learned
+This project allowed me to practice:
 
-En v1 et au delà, le projet prévoit déjà les fonctionnalités ci-dessous. D'autres pourront être implémentées en plus :
-- interface utilisateur
-- gestion complète des recettes
-- génération de la liste de course
-- saisonnalité
-- préférence utilisateur
-- heuristiques de planification plus avancées
-
-9. Choix techniques et apprentissage
-
-Ce projet m'a permi de travailler et développer :
-- architecture en couche
-- séparation des règles métiers et orchestration
-- séparation des responsabilités
-- modélisation des contraintes et des invariants
-- création et implémentation d'une stratégie de tests
-- préparation d'un environnement de développement
-- intégration dans PostgreSQL
+- Domain-Driven Design (DDD)
+- Layered architecture
+- Separation of concerns
+- Domain modeling and invariants
+- Unit testing strategy (pytest)
+- PostgreSQL integration

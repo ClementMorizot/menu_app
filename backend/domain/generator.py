@@ -1,86 +1,72 @@
 # domain/generator.py
-
-from __future__ import annotations
-from uuid import UUID
 import random
-from typing import List
-from .repositories import RecipeRepository
-from .bloc import Bloc
-from .recette import Recette
-from .creneau import Creneau
-from .menu import Menu
+from backend.domain.repositories import RecipeRepository
+from backend.domain.mealblock import MealBlock
+from backend.domain.recipe import Recipe
 
 
-class MenuGenerator:
+class MealBlockGenerator:
     def __init__(self, recipe_repository: RecipeRepository):
         self._recipe_repository = recipe_repository
 
-    def creer_bloc(self, recette: Recette) -> Bloc:
-        # bloc snapshot (V1) : on stocke la recette telle quelle
-        return Bloc(recette_snapshot=recette, longueur=recette.nombre_repas)
+    def _create_mealblock(self, recipe: Recipe) -> MealBlock:
+        # block snapshot (V1) : recipe is stored as it is
+        return MealBlock(recipe_snapshot=recipe, length=recipe.number_meals)
 
-    def creer_liste_blocs(self, nombre_repas: int) -> List[Bloc]:
-        recettes = self._recipe_repository.list_recipes()
-        if not recettes:
-            raise ValueError("Aucune recette disponible")
+    def generate_mealblocks(self, number_meals: int) -> list[MealBlock]:
+        recipes = self._recipe_repository.list_recipes()
+        if not recipes:
+            raise ValueError("No recipe available")
 
-        blocs: List[Bloc] = []
+        blocks: list[MealBlock] = []
         total = 0
 
-        # Pour éviter les boucles infinies, on limite les essais.
-        # (V1 simple : on tente, et si on n'y arrive pas, on échoue clairement.)
-        max_essais = 5000
-        essais = 0
+        max_tries = 5000
+        tries = 0
 
-        # Option: éviter de reprendre la même recette
-        recette_ids_utilises = set()
+        used_recipe_ids = set()
 
-        while total < nombre_repas:
-            essais += 1
-            if essais > max_essais:
+        while total < number_meals:
+            tries += 1
+            if tries > max_tries:
                 raise ValueError(
-                    "Impossible de générer des blocs couvrant exactement "
-                    f"{nombre_repas} repas avec les recettes disponibles."
+                    f"Unable to generate mealblocks list covering exactly {number_meals} meals."
                 )
 
-            recette = random.choice(recettes)
+            recipe = random.choice(recipes)
 
-            # évite doublon de recette (adaptable selon tes règles)
-            if recette.id in recette_ids_utilises:
+            if recipe.id in used_recipe_ids:
                 continue
 
-            longueur = recette.nombre_repas
-            if total + longueur > nombre_repas:
+            block_length = recipe.number_meals
+            if total + block_length > number_meals:
                 continue
 
-            bloc = self.creer_bloc(recette)
-            blocs.append(bloc)
-            recette_ids_utilises.add(recette.id)
-            total += longueur
+            mealblock = self._create_mealblock(recipe)
+            blocks.append(mealblock)
+            used_recipe_ids.add(recipe.id)
+            total += block_length
 
-        return blocs
+        return blocks
 
-    def creer_bloc_pour_reroll(
-        self,
-        longueur_bloc: int,
-        recettes_exclues: list[Recette]
-    ) -> Bloc:
-        if longueur_bloc < 1:
-            raise ValueError("La longueur du bloc doit être supérieure ou égale à 1.")
+    def generate_replacement_mealblock(
+        self, block_length: int, excluded_recipes: list[Recipe]
+    ) -> MealBlock:
+        if block_length < 1:
+            raise ValueError("Mealblock length must be greater than 0.")
 
-        recettes_disponibles = self._recipe_repository.list_recipes()
+        available_recipes = self._recipe_repository.list_recipes()
 
-        recettes_candidates = [
-            recette
-            for recette in recettes_disponibles
-            if recette.nombre_repas == longueur_bloc
-            and recette not in recettes_exclues
+        recipes_candidates = [
+            recipe
+            for recipe in available_recipes
+            if recipe.number_meals == block_length and recipe not in excluded_recipes
         ]
 
-        if not recettes_candidates:
+        if not recipes_candidates:
             raise ValueError(
-                f"Aucune recette disponible ne permet de créer un bloc de longueur {longueur_bloc}."
+                f"No available recipe allows creating a {block_length} long block."
             )
 
-        recette_choisie = random.choice(recettes_candidates)
-        return self.creer_bloc(recette_choisie)
+        selected_recipe = random.choice(recipes_candidates)
+        return self._create_mealblock(selected_recipe)

@@ -1,168 +1,187 @@
-from application.orchestrator import MenuOrchestrator
-from application.creneauxgenerator import CreneauxGenerator
-from domain.generator import MenuGenerator
-from domain.planner import MenuPlanner
-from domain.menu import Menu
-from tests.fakes.fake_repository import FakeRecipeRepository
-from tests.objets_test import recettes, creneaux
+from backend.application.orchestrator import MenuOrchestrator
+from backend.application.timeslotsgenerator import TimeSlotGenerator
+from backend.tests.test_objects import timeslots
+from backend.domain.generator import MealBlockGenerator
+from backend.domain.planner import MenuPlanner
+from backend.domain.menu import Menu
+from backend.tests.fakes.fake_repository import FakeRecipeRepository
+from backend.tests.test_objects import recipes
+from backend.domain.editor import MenuEditor
+from backend.tests.test_objects import menus
 
-#imports pour tests future de la méthode reroll
-from domain.editor import MenuEditor
-from tests.objets_test import menus
 
-def test_orchestrator_pour_cas_nominal():
+def test_orchestrator_in_nominal_case():
     # Arrange
-    liste_recette = [recettes.recette_1_repas(),
-                     recettes.recette_1_repas_bis(),
-                     recettes.recette_1_repas_ter(),
-                     recettes.recette_1_repas_quater(),
-                     recettes.recette_2_repas(),
-                     recettes.recette_2_repas_bis(),
-                     recettes.recette_3_repas(),
-                     recettes.recette_3_repas_bis()
-
+    recipes_list = [
+        recipes.one_meal_recipe(),
+        recipes.one_meal_recipe_2(),
+        recipes.one_meal_recipe_3(),
+        recipes.one_meal_recipe_4(),
+        recipes.two_meals_recipe(),
+        recipes.two_meals_recipe_2(),
+        recipes.three_meals_recipe(),
+        recipes.three_meals_recipe_2(),
     ]
-    repository = FakeRecipeRepository(liste_recette)
-    blocgenerator = MenuGenerator(repository)
-    menuplanner = MenuPlanner()
-    menueditor = MenuEditor()
-    creneauxgenerator = CreneauxGenerator()
-    orchestrator = MenuOrchestrator(blocgenerator,menuplanner,menueditor,creneauxgenerator)
+    repository = FakeRecipeRepository(recipes_list)
+    mealblock_generator = MealBlockGenerator(repository)
+    menu_planner = MenuPlanner()
+    menu_editor = MenuEditor()
+    timeslot_generator = TimeSlotGenerator()
+    orchestrator = MenuOrchestrator(
+        mealblock_generator, menu_planner, menu_editor, timeslot_generator
+    )
 
     # Act
-    result = orchestrator.generer_menu()
+    result = orchestrator.generate_menu()
 
     # Assert
-    assert result.succes is True
-    assert isinstance(result.menu,Menu)
-    assert result.menu.est_stable() is True
-    assert result.menu.est_complet(14) is True
-    assert result.message == "Menu créé avec succès"
+    assert result.success is True
+    assert isinstance(result.menu, Menu)
+    assert result.menu.is_stable() is True
+    assert result.menu.is_complete(14) is True
+    assert result.message == "Menu successfully created"
 
-def test_orchestrator_pour_repository_insuffisant():
+
+def test_orchestrator_with_insufficient_repository():
     # Arrange
-    liste_recette = [recettes.recette_1_repas(),
-                     recettes.recette_1_repas_bis(),
-                     recettes.recette_1_repas_ter(),
-                     recettes.recette_1_repas_quater(),
-                     recettes.recette_2_repas(),
-
+    recipes_list = [
+        recipes.one_meal_recipe(),
+        recipes.one_meal_recipe_2(),
+        recipes.one_meal_recipe_3(),
+        recipes.one_meal_recipe_4(),
+        recipes.two_meals_recipe(),
     ]
-    repository = FakeRecipeRepository(liste_recette)
-    blocgenerator = MenuGenerator(repository)
-    menuplanner = MenuPlanner()
-    menueditor = MenuEditor()
-    creneauxgenerator = CreneauxGenerator()
-    orchestrator = MenuOrchestrator(blocgenerator,menuplanner,menueditor,creneauxgenerator)
+    repository = FakeRecipeRepository(recipes_list)
+    mealblock_generator = MealBlockGenerator(repository)
+    menu_planner = MenuPlanner()
+    menu_editor = MenuEditor()
+    timeslot_generator = TimeSlotGenerator()
+    orchestrator = MenuOrchestrator(
+        mealblock_generator, menu_planner, menu_editor, timeslot_generator
+    )
 
     # Act
-    result = orchestrator.generer_menu()
+    result = orchestrator.generate_menu()
 
     # Assert
-    assert result.succes is False
+    assert result.success is False
     assert result.menu is None
-    assert result.message == "Impossible de générer un menu avec les recettes disponibles"
-    
-def test_reroll_par_orchestrator_dans_un_cas_nominal_pour_recette_un_repas():
+    assert result.message == "Unable to create menu with the available recipes"
+
+
+def test_reroll_by_orchestrator_in_nominal_case_for_length_one_mealblock():
     # Arrange
-    menu = menus.menu_pour_reroll()
-    creneau_cible = creneaux.lundi_midi()
-    liste_recettes = [recettes.recette_1_repas_ter()]
-    repository = FakeRecipeRepository(liste_recettes)
-    generator = MenuGenerator(repository)
+    menu = menus.menu_for_reroll()
+    target_timeslot = timeslots.monday_lunch()
+    recipes_list = [recipes.one_meal_recipe_3()]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
     planner = MenuPlanner()
     editor = MenuEditor()
-    creneauxgenerator = CreneauxGenerator()
-    orchestrator = MenuOrchestrator(generator,planner,editor,creneauxgenerator)
+    timeslot_generator = TimeSlotGenerator()
+    orchestrator = MenuOrchestrator(generator, planner, editor, timeslot_generator)
 
     # Act
-    resultat = orchestrator.reroll_creneau(menu, creneau_cible)
+    result = orchestrator.reroll_timeslot(menu, target_timeslot)
 
     # Assert
-    assert menu.est_stable() is True
-    assert menu.obtenir_bloc(creneau_cible).recette_snapshot == liste_recettes[0]
-    assert resultat.succes is True
-    assert isinstance(resultat.menu,Menu)
-    assert resultat.message == "Repas remplacé avec succès"
+    assert menu.is_stable() is True
+    assert menu.get_mealblock(target_timeslot).recipe_snapshot == recipes_list[0]
+    assert result.success is True
+    assert isinstance(result.menu, Menu)
+    assert result.message == "Meal replaced successfully"
 
-def test_reroll_par_orchestrator_dans_un_cas_nominal_pour_recette_multi_repas():
+
+def test_reroll_by_orchestrator_in_nominal_case_for_mealblock_length_greater_than_one():
     # Arrange
-    menu = menus.menu_pour_reroll()
-    creneau_cible = creneaux.mardi_midi()
-    liste_creneaux_affectes = menu.creneaux_du_bloc(menu.obtenir_bloc(creneau_cible))
-    liste_recettes = [recettes.recette_2_repas_bis()]
-    repository = FakeRecipeRepository(liste_recettes)
-    generator = MenuGenerator(repository)
+    menu = menus.menu_for_reroll()
+    target_timeslot = timeslots.tuesday_lunch()
+    affected_timeslots = menu.timeslots_for(menu.get_mealblock(target_timeslot))
+    recipes_list = [recipes.two_meals_recipe_2()]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
     planner = MenuPlanner()
     editor = MenuEditor()
-    creneauxgenerator = CreneauxGenerator()
-    orchestrator = MenuOrchestrator(generator,planner,editor,creneauxgenerator)
+    timeslot_generator = TimeSlotGenerator()
+    orchestrator = MenuOrchestrator(generator, planner, editor, timeslot_generator)
 
     # Act
-    resultat = orchestrator.reroll_creneau(menu, creneau_cible)
+    result = orchestrator.reroll_timeslot(menu, target_timeslot)
 
     # Assert
-    assert menu.est_stable() is True
-    assert all(menu.obtenir_bloc(creneau).recette_snapshot == liste_recettes[0] for creneau in  liste_creneaux_affectes)
-    assert resultat.succes is True
-    assert isinstance(resultat.menu,Menu)
-    assert resultat.message == "Repas remplacé avec succès"
+    assert menu.is_stable() is True
+    assert all(
+        menu.get_mealblock(timeslot).recipe_snapshot == recipes_list[0]
+        for timeslot in affected_timeslots
+    )
+    assert result.success is True
+    assert isinstance(result.menu, Menu)
+    assert result.message == "Meal replaced successfully"
 
-def test_reroll_par_orchestrator_cas_creneau_non_planifie():
+
+def test_reroll_by_orchestrator_on_unplanned_timeslot():
     # Arrange
-    menu = menus.menu_pour_reroll()
-    creneaux_du_menu_initial = menu.creneaux_planifies()
-    representation_menu_initial = dict()
-    for creneau in creneaux_du_menu_initial :
-        representation_menu_initial[creneau] = menu.obtenir_bloc(creneau)
-    creneau_cible = creneaux.vendredi_midi()
-    liste_recettes = [recettes.recette_1_repas_ter()]
-    repository = FakeRecipeRepository(liste_recettes)
-    generator = MenuGenerator(repository)
+    menu = menus.menu_for_reroll()
+    initial_menu_timeslots = menu.planned_timeslots()
+    initial_menu_representation = dict()
+    for timeslot in initial_menu_timeslots:
+        initial_menu_representation[timeslot] = menu.get_mealblock(timeslot)
+    target_timeslot = timeslots.friday_lunch()
+    recipes_list = [recipes.one_meal_recipe_3()]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
     planner = MenuPlanner()
     editor = MenuEditor()
-    creneauxgenerator = CreneauxGenerator()
-    orchestrator = MenuOrchestrator(generator,planner,editor,creneauxgenerator)
+    timeslot_generator = TimeSlotGenerator()
+    orchestrator = MenuOrchestrator(generator, planner, editor, timeslot_generator)
 
     # Act
-    resultat = orchestrator.reroll_creneau(menu, creneau_cible)
+    result = orchestrator.reroll_timeslot(menu, target_timeslot)
 
     # Assert
-    assert resultat.succes is False
-    assert isinstance(resultat.menu,Menu)
-    assert resultat.message == "Impossible de remplacer ce repas avec les recettes disponibles"
-    assert menu.est_stable() is True
-    assert menu.est_complet(len(creneaux_du_menu_initial)) is True
+    assert result.success is False
+    assert isinstance(result.menu, Menu)
+    assert result.message == "Unable to replace meal with available recipes"
+    assert menu.is_stable() is True
+    assert menu.is_complete(len(initial_menu_timeslots)) is True
+    assert all(
+        menu.get_mealblock(timeslot) == initial_menu_representation[timeslot]
+        for timeslot in menu.planned_timeslots()
+    )
 
-    # Verification que menu reste inchangé
-    assert all(menu.obtenir_bloc(creneau) == representation_menu_initial[creneau] for creneau in menu.creneaux_planifies())
-    
 
-def test_reroll_par_orchestrator_cas_repository_insuffisant_pour_les_contraintes_du_reroll():
+def test_reroll_by_orchestrator_with_insufficient_repository_under_reroll_constraints():
     # Arrange
-    menu = menus.menu_pour_reroll()
-    creneaux_du_menu_initial = menu.creneaux_planifies()
-    representation_menu_initial = dict()
-    for creneau in creneaux_du_menu_initial :
-        representation_menu_initial[creneau] = menu.obtenir_bloc(creneau)
-    creneau_cible = creneaux.lundi_midi()
-    liste_recettes = [menu.obtenir_bloc(creneau_cible).recette_snapshot,recettes.recette_2_repas_bis()]
-    repository = FakeRecipeRepository(liste_recettes)
-    generator = MenuGenerator(repository)
+    menu = menus.menu_for_reroll()
+    initial_menu_timeslots = menu.planned_timeslots()
+    initial_menu_representation = dict()
+    for timeslot in initial_menu_timeslots:
+        initial_menu_representation[timeslot] = menu.get_mealblock(timeslot)
+    target_timeslot = timeslots.monday_lunch()
+    recipes_list = [
+        menu.get_mealblock(target_timeslot).recipe_snapshot,
+        recipes.two_meals_recipe_2(),
+    ]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
     planner = MenuPlanner()
     editor = MenuEditor()
-    creneauxgenerator = CreneauxGenerator()
-    orchestrator = MenuOrchestrator(generator,planner,editor,creneauxgenerator)
+    timeslot_generator = TimeSlotGenerator()
+    orchestrator = MenuOrchestrator(generator, planner, editor, timeslot_generator)
 
     # Act
-    resultat = orchestrator.reroll_creneau(menu, creneau_cible)
+    result = orchestrator.reroll_timeslot(menu, target_timeslot)
 
     # Assert
-    assert resultat.succes is False
-    assert isinstance(resultat.menu,Menu)
-    assert resultat.message == "Impossible de remplacer ce repas avec les recettes disponibles"
-    assert menu.est_stable() is True
-    assert menu.est_complet(len(creneaux_du_menu_initial)) is True
-
-    # Verification que menu reste inchangé
-    assert all(menu.obtenir_bloc(creneau) == representation_menu_initial[creneau] for creneau in menu.creneaux_planifies())
+    assert result.success is False
+    assert isinstance(result.menu, Menu)
+    assert (
+        result.message
+        == "Unable to replace meal with available recipes"
+    )
+    assert menu.is_stable() is True
+    assert menu.is_complete(len(initial_menu_timeslots)) is True
+    assert all(
+        menu.get_mealblock(timeslot) == initial_menu_representation[timeslot]
+        for timeslot in menu.planned_timeslots()
+    )

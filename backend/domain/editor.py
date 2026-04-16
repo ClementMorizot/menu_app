@@ -1,39 +1,40 @@
-from .bloc import Bloc
-from .creneau import Creneau
-from .menu import Menu
+from backend.domain.mealblock import MealBlock
+from backend.domain.timeslot import TimeSlot
+from backend.domain.menu import Menu
+
 
 class MenuEditor:
-    
-    def __init__(self) -> None :
-        pass
+    def reroll(
+        self, menu: Menu, target_timeslot: TimeSlot, new_mealblock: MealBlock
+    ) -> None:
+        if not menu.is_planned(target_timeslot):
+            raise ValueError("Cannot reroll an unplanned timeslot")
 
-    def reroll(self, menu : Menu, creneau_cible : Creneau, nouveau_bloc : Bloc) -> None :
-        if not menu.est_planifie(creneau_cible) :
-            raise ValueError(f"Creneau cible non planifié")
-        
-        if nouveau_bloc.longueur < 1:
-            raise ValueError(f"Nouveau bloc de longueur incohérente (<1)")
-        
-        ancien_bloc = menu.obtenir_bloc(creneau_cible)
+        if new_mealblock.length < 1:
+            raise ValueError("New mealblock length must be greater than 0.")
 
-        if ancien_bloc == nouveau_bloc:
-            raise ValueError(f"Le nouveau bloc est identique à l'ancien bloc")
-        
-        if menu.contient_bloc(nouveau_bloc):
-            raise ValueError(f"Bloc déjà présent dans le Menu")        
+        old_mealblock = menu.get_mealblock(target_timeslot)
 
-        if ancien_bloc.longueur != nouveau_bloc.longueur:
-            raise ValueError(f"Incohérence longueur ancien et nouveau bloc")
-        
-        creneaux_impactes = menu.creneaux_du_bloc(ancien_bloc)
-        if len(creneaux_impactes) != ancien_bloc.longueur:
-            raise ValueError(f"Incohérence longueur du bloc et nombre de creneaux")
-        
-        for creneau in creneaux_impactes:
-            menu.supprimer_bloc(creneau)
+        if old_mealblock == new_mealblock:
+            raise ValueError("New mealblock is identical to the current mealblock")
 
-        for creneau in creneaux_impactes:
-            menu.ajouter_bloc(creneau,nouveau_bloc)
-        
-        if not menu.est_stable() :
-            raise ValueError(f"Menu instable")
+        if menu.has_mealblock(new_mealblock):
+            raise ValueError("New mealblock is already present in the menu")
+
+        if old_mealblock.length != new_mealblock.length:
+            raise ValueError(
+                "New mealblock must have the same length as the current mealblock"
+            )
+
+        affected_timeslots = menu.timeslots_for(old_mealblock)
+        if len(affected_timeslots) != old_mealblock.length:
+            raise ValueError("Mealblock length does not match its assigned timeslots")
+
+        for timeslot in affected_timeslots:
+            menu.delete_mealblock(timeslot)
+
+        for timeslot in affected_timeslots:
+            menu.add_mealblock(timeslot, new_mealblock)
+
+        if not menu.is_stable():
+            raise ValueError("Menu is not stable after reroll")

@@ -1,58 +1,56 @@
-from application.orchestrator import MenuOrchestrator
-from application.creneauxgenerator import CreneauxGenerator
-from domain.generator import MenuGenerator
-from domain.planner import MenuPlanner
-from domain.editor import MenuEditor
-from domain.menu import Menu
-from infrastructure.db_connection import get_connection
-from infrastructure.sql_recipe_repository import SqlRecipeRepository
+from backend.application.orchestrator import MenuOrchestrator
+from backend.application.timeslotsgenerator import TimeSlotGenerator
+from backend.domain.generator import MealBlockGenerator
+from backend.domain.planner import MenuPlanner
+from backend.domain.editor import MenuEditor
+from backend.domain.menu import Menu
+from backend.infrastructure.db_connection import get_connection
+from backend.infrastructure.sql_recipe_repository import SqlRecipeRepository
 
-def afficher_menu( menu: Menu) -> None:
-    # Affichage en console pour tests de fonctionnement minimaliste
-    creneaux = menu.creneaux_planifies()
-    print("Menu généré: ")
-    for creneau in creneaux:
-        bloc = menu.obtenir_bloc(creneau)
-        print(f"{creneau.jour} {creneau.moment} : {bloc.recette_snapshot.nom}")
-    
+
+def display_menu(menu: Menu) -> None:
+    # Terminal diplay before v1
+    timeslot = menu.planned_timeslots()
+    print("Generated menu: ")
+    for timeslot in timeslot:
+        bloc = menu.get_mealblock(timeslot)
+        print(f"{timeslot.day} {timeslot.meal_time} : {bloc.recipe_snapshot.name}")
+
 
 def main() -> None:
-    connexion = None
+    connection = None
 
     try:
-        connexion = get_connection()
-        repository = SqlRecipeRepository(connexion)
+        connection = get_connection()
+        repository = SqlRecipeRepository(connection)
 
-        generator = MenuGenerator(repository)
-        planner = MenuPlanner()
-        editor = MenuEditor()
-        creneaux_generator = CreneauxGenerator()
+        mealblock_generator = MealBlockGenerator(repository)
+        menu_planner = MenuPlanner()
+        menu_editor = MenuEditor()
+        timeslot_generator = TimeSlotGenerator()
 
         orchestrator = MenuOrchestrator(
-            generator,
-            planner,
-            editor,
-            creneaux_generator
+            mealblock_generator, menu_planner, menu_editor, timeslot_generator
         )
 
-        resultat = orchestrator.generer_menu()
+        result = orchestrator.generate_menu()
 
-        if not resultat.succes:
-            print(resultat.message)
+        if not result.success:
+            print(result.message)
             return
 
-        print(resultat.message)
+        print(result.message)
         print()
 
-        if resultat.menu is not None:
-            afficher_menu(resultat.menu)
+        if result.menu is not None:
+            display_menu(result.menu)
 
     except Exception as e:
         print(f"Erreur technique : {e}")
 
     finally:
-        if connexion is not None:
-            connexion.close()
+        if connection is not None:
+            connection.close()
 
 
 if __name__ == "__main__":

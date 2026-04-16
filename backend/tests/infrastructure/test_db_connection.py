@@ -16,7 +16,7 @@ def test_connection():
 
     conn.close()
 
-    print("Connexion OK :", result)
+    print("Connection OK: ", result)
 
 
 if __name__ == "__main__":

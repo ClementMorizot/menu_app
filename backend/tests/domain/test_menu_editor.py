@@ -1,88 +1,115 @@
-from tests.objets_test import menus, blocs, creneaux
-from domain.editor import MenuEditor
+from backend.tests.test_objects import mealblocks, timeslots
+from backend.tests.test_objects import menus
+from backend.domain.editor import MenuEditor
 import pytest
 
-def test_reroll_remplace_toutes_les_occurrences_du_bloc_cible():
+
+def test_reroll_replaces_all_current_block_occurrences():
     # Arrange
-    menu = menus.menu_deux_blocs_longueur_2()
-    creneau_cible = creneaux.lundi_midi()
-    nouveau_bloc = blocs.bloc_longueur_2_ter()
-    bloc_spectateur = menu.obtenir_bloc(creneaux.mardi_midi())
+    menu = menus.menu_with_two_length_2_mealblock()
+    target_timeslot = timeslots.monday_lunch()
+    new_mealblock = mealblocks.length_2_mealblock_3()
+    unaffected_mealblock = menu.get_mealblock(timeslots.tuesday_lunch())
     editor = MenuEditor()
 
     # Act
-    editor.reroll(menu,creneau_cible,nouveau_bloc)
+    editor.reroll(menu, target_timeslot, new_mealblock)
 
     # Assert
-    assert menu.est_stable() is True
-    assert menu.obtenir_bloc(creneaux.lundi_midi()) == nouveau_bloc
-    assert menu.obtenir_bloc(creneaux.lundi_soir()) == nouveau_bloc
-    assert menu.obtenir_bloc(creneaux.mardi_midi()) == bloc_spectateur
-    assert menu.obtenir_bloc(creneaux.mardi_soir()) == bloc_spectateur
+    assert menu.is_stable() is True
+    assert menu.get_mealblock(timeslots.monday_lunch()) == new_mealblock
+    assert menu.get_mealblock(timeslots.monday_dinner()) == new_mealblock
+    assert menu.get_mealblock(timeslots.tuesday_lunch()) == unaffected_mealblock
+    assert menu.get_mealblock(timeslots.tuesday_dinner()) == unaffected_mealblock
 
-def test_reroll_leve_une_erreur_si_le_creneau_cible_n_est_pas_planifie():
+
+def test_reroll_raises_error_if_timeslot_is_not_planned():
     # Arrange
-    menu = menus.menu_deux_blocs_longueur_2()
-    creneau_cible = creneaux.vendredi_midi()
-    nouveau_bloc = blocs.bloc_longueur_2_ter()
+    menu = menus.menu_with_two_length_2_mealblock()
+    target_timeslot = timeslots.friday_lunch()
+    new_mealblock = mealblocks.length_2_mealblock_3()
     editor = MenuEditor()
 
-    # Act / Assess
+    # Act / Assert
     with pytest.raises(ValueError):
-        editor.reroll(menu,creneau_cible,nouveau_bloc)
+        editor.reroll(menu, target_timeslot, new_mealblock)
 
-def test_reroll_leve_une_erreur_si_le_nouveau_bloc_est_de_longueur_inferieure_a_1():
+
+def test_reroll_raises_error_for_mealblock_length_smaller_than_1():
     # Arrange
-    menu = menus.menu_deux_blocs_longueur_2()
-    creneau_cible = creneaux.lundi_midi()
-    nouveau_bloc = blocs.bloc_longueur_nulle()
+    menu = menus.menu_with_two_length_2_mealblock()
+    target_timeslot = timeslots.monday_lunch()
+    new_mealblock = mealblocks.zero_length_mealblock()
     editor = MenuEditor()
 
-    # Act / Assess
+    # Act / Assert
     with pytest.raises(ValueError):
-        editor.reroll(menu,creneau_cible,nouveau_bloc)
+        editor.reroll(menu, target_timeslot, new_mealblock)
 
-def test_reroll_leve_une_erreur_si_le_nouveau_bloc_est_le_bloc_demande_en_modification():
+
+def test_reroll_raises_error_if_new_mealblock_is_current_mealblock():
     # Arrange
-    menu = menus.menu_deux_blocs_longueur_2()
-    creneau_cible = creneaux.lundi_midi()
-    ancien_bloc = menu.obtenir_bloc(creneau_cible)
-    nouveau_bloc = ancien_bloc
+    menu = menus.menu_with_two_length_2_mealblock()
+    target_timeslot = timeslots.monday_lunch()
+    current_mealblock = menu.get_mealblock(target_timeslot)
+    new_mealblock = current_mealblock
     editor = MenuEditor()
 
-    # Act / Assess
+    # Act / Assert
     with pytest.raises(ValueError):
-        editor.reroll(menu,creneau_cible,nouveau_bloc)
+        editor.reroll(menu, target_timeslot, new_mealblock)
 
-def test_reroll_leve_une_erreur_si_le_nouveau_bloc_est_le_bloc_deja_dans_le_menu_sur_un_autre_creneau():
+
+def test_reroll_raises_error_if_new_mealblock_is_already_in_menu():
     # Arrange
-    menu = menus.menu_pour_reroll()
-    creneau_cible = creneaux.mardi_soir()
-    nouveau_bloc = menu.obtenir_bloc(creneaux.lundi_midi())
+    menu = menus.menu_for_reroll()
+    target_timeslot = timeslots.tuesday_dinner()
+    new_mealblock = menu.get_mealblock(timeslots.monday_lunch())
     editor = MenuEditor()
 
-    # Act / Assess
+    # Act / Assert
     with pytest.raises(ValueError):
-        editor.reroll(menu,creneau_cible,nouveau_bloc)
+        editor.reroll(menu, target_timeslot, new_mealblock)
 
-def test_reroll_leve_une_erreur_si_ancien_et_nouveau_bloc_n_ont_pas_la_meme_longueur():
+
+def test_reroll_raises_error_for_different_lengths_between_new_and_current_mealblocks():
     # Arrange
-    menu = menus.menu_deux_blocs_longueur_2()
-    creneau_cible = creneaux.lundi_midi()
-    nouveau_bloc = blocs.bloc_longueur_1()
+    menu = menus.menu_with_two_length_2_mealblock()
+    target_timeslot = timeslots.monday_lunch()
+    new_mealblock = mealblocks.length_1_mealblock()
     editor = MenuEditor()
 
-    # Act / Assess
+    # Act / Assert
     with pytest.raises(ValueError):
-        editor.reroll(menu,creneau_cible,nouveau_bloc)
+        editor.reroll(menu, target_timeslot, new_mealblock)
 
-def test_reroll_leve_une_erreur_si_le_bloc_cible_est_deja_incoherent_dans_le_menu():
+
+def test_reroll_raises_error_if_current_mealblock_is_incomplete_in_menu():
     # Arrange
-    menu = menus.menu_instable_bloc_incomplet()
-    creneau_cible = creneaux.lundi_soir()
-    nouveau_bloc = blocs.bloc_longueur_2_ter()
+    menu = menus.unstable_menu_with_incomplete_mealblock()
+    target_timeslot = timeslots.monday_dinner()
+    new_mealblock = mealblocks.length_2_mealblock_3()
     editor = MenuEditor()
 
-    # Act / Assess
+    # Act / Assert
     with pytest.raises(ValueError):
-        editor.reroll(menu,creneau_cible,nouveau_bloc)
+        editor.reroll(menu, target_timeslot, new_mealblock)
+
+
+def snapshot_menu(menu):
+    return {
+        timeslot: menu.get_mealblock(timeslot) for timeslot in menu.planned_timeslots()
+    }
+
+
+def test_reroll_does_not_modify_menu_if_timeslot_is_not_planned():
+    menu = menus.menu_with_two_length_2_mealblock()
+    initial_snapshot = snapshot_menu(menu)
+    target_timeslot = timeslots.friday_lunch()
+    new_mealblock = mealblocks.length_2_mealblock_3()
+    editor = MenuEditor()
+
+    with pytest.raises(ValueError):
+        editor.reroll(menu, target_timeslot, new_mealblock)
+
+    assert snapshot_menu(menu) == initial_snapshot

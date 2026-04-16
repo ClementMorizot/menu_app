@@ -1,90 +1,88 @@
 from dataclasses import dataclass
-from domain.menu import Menu
-from domain.generator import MenuGenerator
-from domain.planner import MenuPlanner
-from domain.editor import MenuEditor
-from domain.creneau import Creneau
-from application.creneauxgenerator import CreneauxGenerator
+from backend.domain.menu import Menu
+from backend.domain.generator import MealBlockGenerator
+from backend.domain.planner import MenuPlanner
+from backend.domain.editor import MenuEditor
+from backend.domain.timeslot import TimeSlot
+from backend.application.timeslotsgenerator import TimeSlotGenerator
+
 
 @dataclass
 class MenuOrchestratorResult:
+    success: bool
+    menu: Menu | None
+    message: str
 
-    succes : bool
-    menu : Menu | None
-    message : str
 
 class MenuOrchestrator:
     def __init__(
-            self,
-            menugenerator : MenuGenerator,
-            menuplanner : MenuPlanner,
-            menueditor : MenuEditor,
-            creneauxgenerator : CreneauxGenerator
-    ) -> None :
-        self._menugenerator = menugenerator
-        self._menuplanner = menuplanner
-        self._menueditor = menueditor
-        self._creneauxgenerator = creneauxgenerator
+        self,
+        menu_generator: MealBlockGenerator,
+        menu_planner: MenuPlanner,
+        menu_editor: MenuEditor,
+        timeslots_generator: TimeSlotGenerator,
+    ) -> None:
+        self._menu_generator = menu_generator
+        self._menu_planner = menu_planner
+        self._menu_editor = menu_editor
+        self._timeslots_generator = timeslots_generator
 
-    def generer_menu(self) -> MenuOrchestratorResult:
-        nombre_repas = 14
+    def generate_menu(self) -> MenuOrchestratorResult:
+        meal_count = 14
 
         try:
-
-            liste_creneaux = self._creneauxgenerator.generer_liste_creneaux(nombre_repas)
-            liste_blocs = self._menugenerator.creer_liste_blocs(nombre_repas)
-            menu = self._menuplanner.planifier(liste_creneaux,liste_blocs)
-
-            return MenuOrchestratorResult(
-                succes = True,
-                menu = menu,
-                message= "Menu créé avec succès"
-            )
-        
-        except ValueError :
-            return MenuOrchestratorResult(
-                succes  =False,
-                menu = None,
-                message = "Impossible de générer un menu avec les recettes disponibles"
-            )
-        
-        except Exception:
-            return MenuOrchestratorResult(
-                succes = False,
-                menu = None,
-                message = "Une erreur technique est survenue lors de la génération du menu"
-            )
-        
-    def reroll_creneau(
-            self,
-            menu : Menu,
-            creneau_cible : Creneau,
-    ) -> MenuOrchestratorResult :
-        
-        try:
-            bloc_cible = menu.obtenir_bloc(creneau_cible)
-            liste_exclusion_recette = [bloc.recette_snapshot for bloc in menu.blocs_uniques()]
-            nouveau_bloc = self._menugenerator.creer_bloc_pour_reroll(bloc_cible.longueur,liste_exclusion_recette)
-            self._menueditor.reroll(menu,creneau_cible,nouveau_bloc)
+            timeslots = self._timeslots_generator.generate_timeslots(meal_count)
+            mealblocks = self._menu_generator.generate_mealblocks(meal_count)
+            menu = self._menu_planner.plan(timeslots, mealblocks)
 
             return MenuOrchestratorResult(
-                succes = True,
-                menu = menu,
-                message = "Repas remplacé avec succès"
+                success=True, menu=menu, message="Menu successfully created"
             )
-        
+
         except ValueError:
-
             return MenuOrchestratorResult(
-                succes = False,
-                menu = menu,
-                message = "Impossible de remplacer ce repas avec les recettes disponibles"
+                success=False,
+                menu=None,
+                message="Unable to create menu with the available recipes",
             )
-        
+
         except Exception:
+            return MenuOrchestratorResult(
+                success=False,
+                menu=None,
+                message="Technical error occurred during menu generation",
+            )
+
+    def reroll_timeslot(
+        self,
+        menu: Menu,
+        target_timeslot: TimeSlot,
+    ) -> MenuOrchestratorResult:
+
+        try:
+            current_bloc = menu.get_mealblock(target_timeslot)
+            excluded_recipes = [
+                bloc.recipe_snapshot for bloc in menu.get_unique_mealblocks()
+            ]
+            new_mealblock = self._menu_generator.generate_replacement_mealblock(
+                current_bloc.length, excluded_recipes
+            )
+            self._menu_editor.reroll(menu, target_timeslot, new_mealblock)
 
             return MenuOrchestratorResult(
-                succes = False,
-                menu = menu,
-                message = "Une erreur technique est survenue lors du remplacement du repas"
+                success=True, menu=menu, message="Meal replaced successfully"
+            )
+
+        except ValueError:
+            return MenuOrchestratorResult(
+                success=False,
+                menu=menu,
+                message="Unable to replace meal with available recipes",
+            )
+
+        except Exception:
+            return MenuOrchestratorResult(
+                success=False,
+                menu=menu,
+                message="Technical error occurred during meal replacement",
             )

@@ -1,233 +1,258 @@
-from tests.objets_test import recettes
-from domain.bloc import Bloc
-from domain.generator import MenuGenerator
-from tests.fakes.fake_repository import FakeRecipeRepository
+from backend.tests.test_objects import recipes
+from backend.domain.mealblock import MealBlock
+from backend.domain.generator import MealBlockGenerator
+from backend.tests.fakes.fake_repository import FakeRecipeRepository
 import pytest
 
-# Tests de la méthode creer_bloc(recette)
+# _create_mealblock(recipe) tests
 
-def test_creer_bloc_retourne_un_bloc_de_meme_longueur_que_la_recette():
+
+def test_create_mealblock_returns_same_length_mealblock_as_recipe_meal_count():
     # Arrange
-    recette = recettes.recette_2_repas()
-    repository = FakeRecipeRepository([recette])
-    generator = MenuGenerator(repository)
+    recipe = recipes.two_meals_recipe()
+    repository = FakeRecipeRepository([recipe])
+    generator = MealBlockGenerator(repository)
 
     # Act
-    bloc = generator.creer_bloc(recette)
+    mealblock = generator._create_mealblock(recipe)
 
     # Assert
-    assert bloc.recette_snapshot == recette
-    assert bloc.longueur == recette.nombre_repas
+    assert mealblock.recipe_snapshot == recipe
+    assert mealblock.length == recipe.number_meals
+
 
 @pytest.mark.parametrize(
-    "fabrique_recette,longueur_attendue",
+    "recipe_factory, expected_length",
     [
-        (recettes.recette_1_repas, 1),
-        (recettes.recette_2_repas, 2),
-        (recettes.recette_nombre_repas_maximal, 14),
-        (recettes.recette_nombre_repas_zero, 0),
-        (recettes.recette_nombre_repas_negatif, -1),
+        (recipes.one_meal_recipe, 1),
+        (recipes.two_meals_recipe, 2),
+        (recipes.maximum_meals_recipe, 14),
+        (recipes.zero_meal_recipe, 0),
+        (recipes.negative_meal_recipe, -1),
     ],
 )
-def test_creer_bloc_recopie_nombre_repas_dans_longueur(fabrique_recette, longueur_attendue):
-    recette = fabrique_recette()
-    repository = FakeRecipeRepository([recette])
-    generator = MenuGenerator(repository)
+def test_create_mealblock_returns_correct_mealblock_length_for_multiple_meal_counts(
+    recipe_factory, expected_length
+):
+    recipe = recipe_factory()
+    repository = FakeRecipeRepository([recipe])
+    generator = MealBlockGenerator(repository)
 
-    bloc = generator.creer_bloc(recette)
+    mealblock = generator._create_mealblock(recipe)
 
-    assert bloc.longueur == longueur_attendue
+    assert mealblock.length == expected_length
 
-# Tests de la méthode creer_blocs(nombre_repas)
 
-def test_creer_liste_blocs_cas_simple():
+# generate_mealblocks(meal_count) tests
+
+
+def test_generate_mealblocks_when_repository_provides_the_exact_amount_of_recipes():
     # Arrange
-    nombre_repas = 3
-    recette_1 = recettes.recette_1_repas()
-    recette_2 = recettes.recette_2_repas()
-    repository = FakeRecipeRepository([recette_1, recette_2])
-    generator = MenuGenerator(repository)
+    meal_count = 3
+    recipe_1 = recipes.one_meal_recipe()
+    recipe_2 = recipes.two_meals_recipe()
+    repository = FakeRecipeRepository([recipe_1, recipe_2])
+    generator = MealBlockGenerator(repository)
 
     # Act
-    blocs = generator.creer_liste_blocs(nombre_repas)
+    mealblocks_list = generator.generate_mealblocks(meal_count)
 
     # Assert
 
-    # 1. somme correcte
-    assert sum(b.longueur for b in blocs) == nombre_repas
+    # 1. sum is correct
+    assert sum(mb.length for mb in mealblocks_list) == meal_count
 
-    # 2. pas de doublon de recette
-    ids = [b.recette_snapshot.id for b in blocs]
+    # 2. only one use per recipe
+    ids = [mb.recipe_snapshot.id for mb in mealblocks_list]
     assert len(ids) == len(set(ids))
 
-    # 3. types corrects
-    assert all(isinstance(b, Bloc) for b in blocs)
+    # 3. check instances
+    assert all(isinstance(mb, MealBlock) for mb in mealblocks_list)
 
-    # 4. correspond aux recettes disponibles
-    recettes_ids = {recette_1.id, recette_2.id}
-    assert all(b.recette_snapshot.id in recettes_ids for b in blocs)
+    # 4. mealblocks created from recipe pool
+    recipes_ids = {recipe_1.id, recipe_2.id}
+    assert all(mb.recipe_snapshot.id in recipes_ids for mb in mealblocks_list)
 
-def test_creer_liste_blocs_cas_repository_vide():
+
+def test_generate_mealblocks_when_repository_is_empty():
     # Arrange
-    nombre_repas = 1
+    meal_count = 1
     repository = FakeRecipeRepository([])
-    generator = MenuGenerator(repository)
+    generator = MealBlockGenerator(repository)
 
     # Act / Assert
-    with pytest.raises(ValueError) : 
-        generator.creer_liste_blocs(nombre_repas)
+    with pytest.raises(ValueError):
+        generator.generate_mealblocks(meal_count)
 
-def test_creer_liste_blocs_cas_repository_insuffisant():
+
+def test_generate_mealblocks_when_repository_is_insufficient():
     # Arrange
-    nombre_repas = 14
-    recette_1 = recettes.recette_1_repas()
-    recette_2 = recettes.recette_2_repas()
-    repository = FakeRecipeRepository([recette_1, recette_2])
-    generator = MenuGenerator(repository)
+    meal_count = 14
+    recipe_1 = recipes.one_meal_recipe()
+    recipe_2 = recipes.two_meals_recipe()
+    repository = FakeRecipeRepository([recipe_1, recipe_2])
+    generator = MealBlockGenerator(repository)
 
     # Act / Assert
-    with pytest.raises(ValueError) : 
-        generator.creer_liste_blocs(nombre_repas)
+    with pytest.raises(ValueError):
+        generator.generate_mealblocks(meal_count)
 
-def test_creer_liste_blocs_cas_nominal_14_repas():
+
+def test_generate_mealblocks_for_a_full_week():
     # Arrange
-    nombre_repas = 14
-    recette_1 = recettes.recette_1_repas()
-    recette_1_bis = recettes.recette_1_repas_bis()
-    recette_1_ter = recettes.recette_1_repas_ter()
-    recette_1_quater = recettes.recette_1_repas_quater()
-    recette_2 = recettes.recette_2_repas()
-    recette_2_bis = recettes.recette_2_repas_bis()
-    recette_2_ter = recettes.recette_2_repas_ter()
-    recette_2_quater = recettes.recette_2_repas_quater()
-    recette_3 = recettes.recette_3_repas()
-    recette_3_bis = recettes.recette_3_repas_bis()
-    liste_recettes = [recette_1,recette_1_bis,recette_1_ter,recette_1_quater,recette_2,recette_2_bis,recette_2_ter,recette_2_quater,recette_3,recette_3_bis]
-    repository = FakeRecipeRepository(liste_recettes)
-    generator = MenuGenerator(repository)
+    meal_count = 14
+    recipe_1 = recipes.one_meal_recipe()
+    recipe_1_bis = recipes.one_meal_recipe_2()
+    recipe_1_ter = recipes.one_meal_recipe_3()
+    recipe_1_quater = recipes.one_meal_recipe_4()
+    recipe_2 = recipes.two_meals_recipe()
+    recipe_2_bis = recipes.two_meals_recipe_2()
+    recipe_3 = recipes.three_meals_recipe()
+    recipe_3_bis = recipes.three_meals_recipe_2()
+    recipes_list = [
+        recipe_1,
+        recipe_1_bis,
+        recipe_1_ter,
+        recipe_1_quater,
+        recipe_2,
+        recipe_2_bis,
+        recipe_3,
+        recipe_3_bis,
+    ]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
 
     # Act
-    liste_blocs = generator.creer_liste_blocs(nombre_repas)
+    mealblocks_list = generator.generate_mealblocks(meal_count)
 
     # Assert
 
-    # 1. Somme correct
-    assert sum(b.longueur for b in liste_blocs) == nombre_repas
+    # 1. check sum
+    assert sum(mb.length for mb in mealblocks_list) == meal_count
 
-    # 2. pas de doublon de recette
-    liste_ids = [b.recette_snapshot.id for b in liste_blocs]
-    assert len(liste_ids) == len(set(liste_ids))
+    # 2. only one use per recipe
+    ids = [mb.recipe_snapshot.id for mb in mealblocks_list]
+    assert len(ids) == len(set(ids))
 
-    # 3. vérification des types
-    assert all(isinstance(bloc,Bloc) for bloc in liste_blocs)
+    # 3. check instances
+    assert all(isinstance(mb, MealBlock) for mb in mealblocks_list)
 
-    # 4. correspond aux recettes disponibles
-    recettes_selectionnees = [b.recette_snapshot for b in liste_blocs]
-    assert all(recette in liste_recettes for recette in recettes_selectionnees)
+    # 4. mealblocks created from recipe pool
+    recipes_ids = {recipe.id for recipe in recipes_list}
+    assert all(mb.recipe_snapshot.id in recipes_ids for mb in mealblocks_list)
 
-def test_creer_liste_cas_monobloc():
+
+def test_generate_mealblocks_for_only_one_block():
     # Arrange
-    nombre_repas = 3
-    recette = recettes.recette_3_repas()
-    repository = FakeRecipeRepository([recette])
-    generator = MenuGenerator(repository)
+    meal_count = 3
+    recipe = recipes.three_meals_recipe()
+    repository = FakeRecipeRepository([recipe])
+    generator = MealBlockGenerator(repository)
 
     # Act
-    blocs = generator.creer_liste_blocs(nombre_repas)
+    mealblocks_list = generator.generate_mealblocks(meal_count)
 
     # Assert
 
-    # 1. somme correcte
-    assert blocs[0].longueur == nombre_repas
+    # 1. check sum
+    assert mealblocks_list[0].length == meal_count
 
-    # 2. recette correcte
-    assert blocs[0].recette_snapshot == recette
+    # 2. check recipe
+    assert mealblocks_list[0].recipe_snapshot == recipe
 
-    # 3. types corrects
-    assert all(isinstance(b, Bloc) for b in blocs)
+    # 3. check instances
+    assert all(isinstance(mb, MealBlock) for mb in mealblocks_list)
 
-    # 4. nombre de bloc = 1
-    assert len(blocs) == 1
+    # 4. count mealblock = 1
+    assert len(mealblocks_list) == 1
 
-# Tests de la méthode creer_bloc_pour_reroll
 
-def test_creer_un_bloc_pour_reroll_dans_un_repository_nominal():
+# generate_replacement_mealblock tests
+
+
+def test_generate_replacement_mealblock_with_minimum_viable_repository():
     # Arrange
-    recette_1 = recettes.recette_1_repas()
-    recette_1_bis = recettes.recette_1_repas_bis()
-    recette_2 = recettes.recette_2_repas()
-    liste_recettes = [recette_1,recette_1_bis,recette_2]
-    repository = FakeRecipeRepository(liste_recettes)
-    blocgenerator = MenuGenerator(repository)
-    longueur_bloc = 1
-    recettes_exclues = [recette_1]
+    recipe_1 = recipes.one_meal_recipe()
+    recipe_1_bis = recipes.one_meal_recipe_2()
+    recipe_2 = recipes.two_meals_recipe()
+    recipes_list = [recipe_1, recipe_1_bis, recipe_2]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
+    mealblock_length = 1
+    excluded_recipes = [recipe_1]
 
     # Act
-    nouveau_bloc = blocgenerator.creer_bloc_pour_reroll(longueur_bloc,recettes_exclues)
+    new_mealblock = generator.generate_replacement_mealblock(
+        mealblock_length, excluded_recipes
+    )
 
     # Assert
-    assert isinstance(nouveau_bloc,Bloc)
-    assert nouveau_bloc.longueur == longueur_bloc
-    assert nouveau_bloc.recette_snapshot == recette_1_bis
+    assert isinstance(new_mealblock, MealBlock)
+    assert new_mealblock.length == mealblock_length
+    assert new_mealblock.recipe_snapshot == recipe_1_bis
 
-def test_creer_bloc_pour_reroll_choisit_une_recette_compatible_parmi_plusieurs_candidates():
+
+def test_generate_replacement_mealblock_chooses_allowed_recipe_between_many_in_repository():
     # Arrange
-    recette_1 = recettes.recette_1_repas()
-    recette_1_bis = recettes.recette_1_repas_bis()
-    recette_1_ter = recettes.recette_1_repas_ter()
-    liste_recettes = [recette_1, recette_1_bis, recette_1_ter]
-    repository = FakeRecipeRepository(liste_recettes)
-    blocgenerator = MenuGenerator(repository)
+    recipe_1 = recipes.one_meal_recipe()
+    recipe_1_bis = recipes.one_meal_recipe_2()
+    recipe_1_ter = recipes.one_meal_recipe_3()
+    recipes_list = [recipe_1, recipe_1_bis, recipe_1_ter]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
 
     # Act
-    nouveau_bloc = blocgenerator.creer_bloc_pour_reroll(1, [recette_1])
+    new_mealblock = generator.generate_replacement_mealblock(1, [recipe_1])
 
     # Assert
-    assert nouveau_bloc.longueur == 1
-    assert nouveau_bloc.recette_snapshot in [recette_1_bis, recette_1_ter]
-    assert nouveau_bloc.recette_snapshot not in [recette_1]
-    
-def test_creer_un_bloc_pour_reroll_avec_longueur_inferieur_a_1():
+    assert new_mealblock.length == 1
+    assert new_mealblock.recipe_snapshot in [recipe_1_bis, recipe_1_ter]
+    assert new_mealblock.recipe_snapshot not in [recipe_1]
+
+
+def test_generate_replacement_mealblock_with_length_less_than_1():
     # Arrange
-    recette_1 = recettes.recette_1_repas()
-    recette_1_bis = recettes.recette_1_repas_bis()
-    recette_2 = recettes.recette_2_repas()
-    liste_recettes = [recette_1,recette_1_bis,recette_2]
-    repository = FakeRecipeRepository(liste_recettes)
-    blocgenerator = MenuGenerator(repository)
-    longueur_bloc = 0
-    recettes_exclues = [recette_1]
+    recipe_1 = recipes.one_meal_recipe()
+    recipe_1_bis = recipes.one_meal_recipe_2()
+    recipe_2 = recipes.one_meal_recipe_3()
+    recipes_list = [recipe_1, recipe_1_bis, recipe_2]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
+    mealblock_length = 0
+    excluded_recipes = [recipe_1]
 
     # Act / assert
     with pytest.raises(ValueError):
-        _ = blocgenerator.creer_bloc_pour_reroll(longueur_bloc,recettes_exclues)
+        _ = generator.generate_replacement_mealblock(mealblock_length, excluded_recipes)
 
-def test_creer_bloc_pour_reroll_sans_recette_compatible_disponible():
+
+def test_generate_replacement_mealblock_without_allowed_recipes_in_repository():
     # Arrange
-    recette_1 = recettes.recette_1_repas()
-    recette_1_bis = recettes.recette_1_repas_bis()
-    recette_2 = recettes.recette_2_repas()
-    liste_recettes = [recette_1,recette_1_bis,recette_2]
-    repository = FakeRecipeRepository(liste_recettes)
-    blocgenerator = MenuGenerator(repository)
-    longueur_bloc = 3
-    recettes_exclues = [recette_1]
+    recipe_1 = recipes.one_meal_recipe()
+    recipe_1_bis = recipes.one_meal_recipe_2()
+    recipe_2 = recipes.two_meals_recipe()
+    recipes_list = [recipe_1, recipe_1_bis, recipe_2]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
+    mealblock_length = max(recipe.number_meals for recipe in recipes_list) + 1
+    excluded_recipes = [recipe_1]
 
     # Act / assert
     with pytest.raises(ValueError):
-        _ = blocgenerator.creer_bloc_pour_reroll(longueur_bloc,recettes_exclues)
+        _ = generator.generate_replacement_mealblock(mealblock_length, excluded_recipes)
 
-def test_creer_bloc_pour_reroll_en_verifiant_la_liste_des_exclusions():
+
+def test_generate_replacement_mealblock_takes_exclusion_list_into_account_when_generating_replacement_block():
     # Arrange
-    recette_1 = recettes.recette_1_repas()
-    recette_1_bis = recettes.recette_1_repas_bis()
-    recette_2 = recettes.recette_2_repas()
-    liste_recettes = [recette_1,recette_1_bis,recette_2]
-    repository = FakeRecipeRepository(liste_recettes)
-    blocgenerator = MenuGenerator(repository)
-    longueur_bloc = 2
-    recettes_exclues = [recette_2]
+    recipe_1 = recipes.one_meal_recipe()
+    recipe_1_bis = recipes.one_meal_recipe_2()
+    recipe_2 = recipes.two_meals_recipe()
+    recipes_list = [recipe_1, recipe_1_bis, recipe_2]
+    repository = FakeRecipeRepository(recipes_list)
+    generator = MealBlockGenerator(repository)
+    mealblock_length = 2
+    excluded_recipes = [recipe_2]
 
     # Act / assert
     with pytest.raises(ValueError):
-        _ = blocgenerator.creer_bloc_pour_reroll(longueur_bloc,recettes_exclues)
+        _ = generator.generate_replacement_mealblock(mealblock_length, excluded_recipes)

@@ -1,187 +1,202 @@
-from infrastructure.sql_recipe_repository import SqlRecipeRepository
-import infrastructure.db_connection as db_connect
-from domain.recette import Recette
+from backend.infrastructure.sql_recipe_repository import SqlRecipeRepository
+import backend.infrastructure.db_connection as db_connect
+from backend.domain.recipe import Recipe
 from uuid import UUID, uuid4
 import pytest
 
-def test_sql_list_recipe():
+
+def test_sql_list_recipes():
     # Arrange
     conn = db_connect.get_connection()
-    sql_recipe_repo = SqlRecipeRepository(conn)
-    recette_test = Recette(
-        id = UUID("1e676777-9b35-4e27-8432-2a0c1429ae85"),
-        nom = "Quiche lorraine",
-        description = "Une tarte salée garnie de lardons, d œufs et de crème fraîche.",
-        temps_preparation = 45,
-        nombre_repas = 2)
-    
+    repository = SqlRecipeRepository(conn)
+    test_recipe = Recipe(
+        id=UUID("1e676777-9b35-4e27-8432-2a0c1429ae85"),
+        name="Quiche lorraine",
+        description="Une tarte salée garnie de lardons, d œufs et de crème fraîche.",
+        cooking_time=45,
+        number_meals=2,
+    )
+
     # Act
-    liste_recettes = sql_recipe_repo.list_recipes()
-
-    conn.close()
-    
-    # Assert
-    assert isinstance(liste_recettes, list)
-    assert recette_test in liste_recettes
-
-    for recette in liste_recettes:
-        assert isinstance(recette, Recette)
-        assert recette.id is not None
-        assert isinstance(recette.nom, str)
-        assert isinstance(recette.nombre_repas, int)
-
-def test_sql_find_by_id_pour_id_existant():
-    # Arrange
-    conn = db_connect.get_connection()
-    sql_recipe_repo = SqlRecipeRepository(conn)
-    recette_test = Recette(
-        id = UUID("1e676777-9b35-4e27-8432-2a0c1429ae85"),
-        nom = "Quiche lorraine",
-        description = "Une tarte salée garnie de lardons, d œufs et de crème fraîche.",
-        temps_preparation = 45,
-        nombre_repas = 2)
-    
-    # Act
-    recette_cible = sql_recipe_repo.find_by_id(recette_test.id)
+    recipe_list = repository.list_recipes()
 
     conn.close()
 
     # Assert
-    assert isinstance(recette_cible,Recette)
-    assert recette_cible.id == recette_test.id
-    assert recette_cible.nom == recette_test.nom
-    assert recette_cible.nombre_repas == recette_test.nombre_repas
-    assert recette_cible.temps_preparation == recette_test.temps_preparation
+    assert isinstance(recipe_list, list)
+    assert test_recipe in recipe_list
 
-def test_sql_find_by_id_pour_id_non_trouve():
+    for recipe in recipe_list:
+        assert isinstance(recipe, Recipe)
+        assert recipe.id is not None
+        assert isinstance(recipe.name, str)
+        assert isinstance(recipe.number_meals, int)
+
+
+def test_sql_find_by_id_for_existing_id():
     # Arrange
     conn = db_connect.get_connection()
-    sql_recipe_repo = SqlRecipeRepository(conn)
-    
+    repository = SqlRecipeRepository(conn)
+    test_recipe = Recipe(
+        id=UUID("1e676777-9b35-4e27-8432-2a0c1429ae85"),
+        name="Quiche lorraine",
+        description="Une tarte salée garnie de lardons, d œufs et de crème fraîche.",
+        cooking_time=45,
+        number_meals=2,
+    )
+
     # Act
-    recette_cible = sql_recipe_repo.find_by_id(UUID("00000000-0000-0000-0000-000000000000"))
+    target = repository.find_by_id(test_recipe.id)
 
     conn.close()
 
     # Assert
-    assert recette_cible is None
+    assert isinstance(target, Recipe)
+    assert target.id == test_recipe.id
+    assert target.name == test_recipe.name
+    assert target.number_meals == test_recipe.number_meals
+    assert target.cooking_time == test_recipe.cooking_time
 
-def test_sql_add_recipe_pour_nouvelle_recette():
+
+def test_sql_find_by_id_for_unknown_id():
     # Arrange
     conn = db_connect.get_connection()
-    sql_recipe_repo = SqlRecipeRepository(conn)
-    nouvelle_recette = Recette(
-        id = uuid4(),
-        nom = "Salade de fraises",
-        description = "Des fraises coupées en morceaux avec du sucre.",
-        temps_preparation = 15,
-        nombre_repas = 1)
-    
+    repository = SqlRecipeRepository(conn)
+
     # Act
-    recette_inseree = sql_recipe_repo.add_recipe(nouvelle_recette)
+    target = repository.find_by_id(
+        UUID("00000000-0000-0000-0000-000000000000")
+    )
+
+    conn.close()
 
     # Assert
-    recette_extraite = sql_recipe_repo.find_by_id(recette_inseree.id)
-    
-    assert recette_extraite is not None
-    assert recette_extraite.id == recette_inseree.id
-    assert recette_extraite.nom == recette_inseree.nom
-    assert recette_extraite.description == recette_inseree.description
-    assert recette_extraite.temps_preparation == recette_inseree.temps_preparation
-    assert recette_extraite.nombre_repas == recette_inseree.nombre_repas
+    assert target is None
+
+
+def test_sql_add_recipe_for_new_recipe():
+    # Arrange
+    conn = db_connect.get_connection()
+    repository = SqlRecipeRepository(conn)
+    new_recipe = Recipe(
+        id=uuid4(),
+        name="Salade de fraises",
+        description="Des fraises coupées en morceaux avec du sucre.",
+        cooking_time=15,
+        number_meals=1,
+    )
+
+    # Act
+    added_recipe = repository.add_recipe(new_recipe)
+
+    # Assert
+    recipe_from_base = repository.find_by_id(added_recipe.id)
+
+    assert recipe_from_base is not None
+    assert recipe_from_base.id == added_recipe.id
+    assert recipe_from_base.name == added_recipe.name
+    assert recipe_from_base.description == added_recipe.description
+    assert recipe_from_base.cooking_time == added_recipe.cooking_time
+    assert recipe_from_base.number_meals == added_recipe.number_meals
 
     # Clean-up
-    sql_recipe_repo.delete_recipe(recette_inseree.id)
+    repository.delete_recipe(added_recipe.id)
     conn.close()
 
-def test_sql_update_recipe_pour_recette_existante_dans_le_repository():
+
+def test_sql_update_recipe_for_existing_id_in_repository():
 
     # Arrange
     conn = db_connect.get_connection()
-    sql_recipe_repo = SqlRecipeRepository(conn)
-    recette_temoin = Recette(
-        id= uuid4(),
-        nom = "Test",
-        description = "Ceci est une recette test.",
-        temps_preparation = 1,
-        nombre_repas = 1
+    repository = SqlRecipeRepository(conn)
+    indicator = Recipe(
+        id=uuid4(),
+        name="Test",
+        description="Ceci est une recette test.",
+        cooking_time=1,
+        number_meals=1,
     )
-    recette_temoin = sql_recipe_repo.add_recipe(recette_temoin)
+    indicator = repository.add_recipe(indicator)
 
-    recette_test = Recette(
-        id= recette_temoin.id,
-        nom = "Test",
-        description = "Ceci est une recette test.",
-        temps_preparation = 1,
-        nombre_repas = 1
+    test_recipe = Recipe(
+        id=indicator.id,
+        name="Test update",
+        description="Ceci est une recette test mise à jour.",
+        cooking_time=15,
+        number_meals=3,
     )
 
     # Act
-    sql_recipe_repo.update_recipe(recette_test)
+    repository.update_recipe(test_recipe)
 
     # Assert
-    verification = sql_recipe_repo.find_by_id(recette_temoin.id)
-    assert verification is not None
-    assert verification.nom == recette_test.nom
-    assert verification.description == recette_test.description
-    assert verification.temps_preparation == recette_test.temps_preparation
-    assert verification.nombre_repas == recette_test.nombre_repas
+    check_recipe = repository.find_by_id(indicator.id)
+    assert check_recipe is not None
+    assert check_recipe.name == test_recipe.name
+    assert check_recipe.description == test_recipe.description
+    assert check_recipe.cooking_time == test_recipe.cooking_time
+    assert check_recipe.number_meals == test_recipe.number_meals
 
     # Clean-up
-    sql_recipe_repo.delete_recipe(recette_temoin.id)
+    repository.delete_recipe(indicator.id)
     conn.close()
 
-def test_sql_update_recipe_pour_recette_absente_du_repository():
+
+def test_sql_update_recipe_for_unknown_id_in_repository():
     # Arrange
     conn = db_connect.get_connection()
-    sql_recipe_repo = SqlRecipeRepository(conn)
-    nouvelle_recette = Recette(
-        id = uuid4(),
-        nom = "Salade de fraises",
-        description = "Des fraises coupées en morceaux avec du sucre.",
-        temps_preparation = 15,
-        nombre_repas = 1)
-    
+    repository = SqlRecipeRepository(conn)
+    new_recipe = Recipe(
+        id=uuid4(),
+        name="Salade de fraises",
+        description="Des fraises coupées en morceaux avec du sucre.",
+        cooking_time=15,
+        number_meals=1,
+    )
+
     # Act / Assert
     with pytest.raises(ValueError):
-        sql_recipe_repo.update_recipe(nouvelle_recette)
+        repository.update_recipe(new_recipe)
 
     conn.close()
 
-def test_sql_delete_recipe_pour_recette_existante_dans_le_repository():
+
+def test_sql_delete_recipe_for_existing_id():
     # Arrange
     conn = db_connect.get_connection()
-    sql_recipe_repo = SqlRecipeRepository(conn)
-    recette_test = Recette(
-        id= uuid4(),
-        nom = "Test",
-        description = "Ceci est une recette test.",
-        temps_preparation = 1,
-        nombre_repas = 1
+    repository = SqlRecipeRepository(conn)
+    test_recipe = Recipe(
+        id=uuid4(),
+        name="Test",
+        description="Ceci est une recette test.",
+        cooking_time=1,
+        number_meals=1,
     )
-    recette_test = sql_recipe_repo.add_recipe(recette_test)
+    test_recipe = repository.add_recipe(test_recipe)
 
     # Act
-    sql_recipe_repo.delete_recipe(recette_test.id)
+    repository.delete_recipe(test_recipe.id)
 
     # Assert
-    assert sql_recipe_repo.find_by_id(recette_test.id) is None
+    assert repository.find_by_id(test_recipe.id) is None
 
     conn.close()
 
-def test_sql_delete_recipe_pour_recette_absente_du_repository():
+
+def test_sql_delete_recipe_for_unknown_id_in_repository():
     # Arrange
     conn = db_connect.get_connection()
-    sql_recipe_repo = SqlRecipeRepository(conn)
-    nouvelle_recette = Recette(
-        id = uuid4(),
-        nom = "Salade de fraises",
-        description = "Des fraises coupées en morceaux avec du sucre.",
-        temps_preparation = 15,
-        nombre_repas = 1)
-    
+    repository = SqlRecipeRepository(conn)
+    new_recipe = Recipe(
+        id=uuid4(),
+        name="Salade de fraises",
+        description="Des fraises coupées en morceaux avec du sucre.",
+        cooking_time=15,
+        number_meals=1,
+    )
+
     # Act / Assert
     with pytest.raises(ValueError):
-        sql_recipe_repo.delete_recipe(nouvelle_recette.id)
+        repository.delete_recipe(new_recipe.id)
 
     conn.close()

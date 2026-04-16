@@ -1,59 +1,79 @@
-from tests.objets_test import creneaux, blocs
-from domain.menu import Menu
-from domain.planner import MenuPlanner
+from backend.tests.test_objects import mealblocks
+from backend.tests.test_objects import timeslots
+from backend.domain.menu import Menu
+from backend.domain.planner import MenuPlanner
 import pytest
 
-def test_planifier_retourne_un_menu_stable_et_complet_dans_le_cas_minimal():
+
+def test_plan_returns_stable_and_complete_menu_for_minimal_case():
     # Arrange
-    liste_creneaux = [creneaux.lundi_midi()]
-    liste_blocs = [blocs.bloc_longueur_1()]
+    timeslots_list = [timeslots.monday_lunch()]
+    mealblocks_list = [mealblocks.length_1_mealblock()]
     planner = MenuPlanner()
 
     # Act
-    menu = planner.planifier(liste_creneaux,liste_blocs)
+    menu = planner.plan(timeslots_list, mealblocks_list)
 
     # Assert
-    assert menu.est_stable()
-    assert menu.est_complet(len(liste_creneaux))
-    assert menu.blocs_uniques() == liste_blocs
-    assert menu.creneaux_planifies() == liste_creneaux
-    assert isinstance(menu,Menu)
+    assert menu.is_stable()
+    assert menu.is_complete(len(timeslots_list))
+    assert menu.get_unique_mealblocks() == mealblocks_list
+    assert menu.planned_timeslots() == timeslots_list
+    assert isinstance(menu, Menu)
 
-def test_planifier_place_les_blocs_sequentiellement():
+
+def test_plan_schedules_mealblocks_sequentially():
     # Arrange
-    bloc_1 = blocs.bloc_longueur_1()
-    bloc_3 = blocs.bloc_longueur_3()
-    liste_creneaux = [creneaux.lundi_midi(),creneaux.lundi_soir(),creneaux.mardi_midi(),creneaux.mardi_soir()]
-    liste_blocs = [bloc_1,bloc_3]
+    block_1 = mealblocks.length_1_mealblock()
+    block_3 = mealblocks.length_3_mealblock()
+    timeslots_list = [
+        timeslots.monday_lunch(),
+        timeslots.monday_dinner(),
+        timeslots.tuesday_lunch(),
+        timeslots.tuesday_dinner(),
+    ]
+    mealblocks_list = [block_1, block_3]
     planner = MenuPlanner()
 
     # Act
-    menu = planner.planifier(liste_creneaux,liste_blocs)
+    menu = planner.plan(timeslots_list, mealblocks_list)
 
     # Assert
-    assert menu.est_stable()
-    assert menu.obtenir_bloc(liste_creneaux[0]) == bloc_1
-    assert menu.obtenir_bloc(liste_creneaux[1]) == bloc_3
-    assert menu.obtenir_bloc(liste_creneaux[2]) == bloc_3
-    assert menu.obtenir_bloc(liste_creneaux[3]) == bloc_3
+    assert menu.is_stable()
+    assert menu.get_mealblock(timeslots_list[0]) == block_1
+    assert menu.get_mealblock(timeslots_list[1]) == block_3
+    assert menu.get_mealblock(timeslots_list[2]) == block_3
+    assert menu.get_mealblock(timeslots_list[3]) == block_3
 
-def test_planifier_leve_une_erreur_si_somme_longueur_blocs_inferieur_au_nombre_creneaux():
+
+def test_plan_raises_error_if_mealblocks_length_sum_is_lesser_than_timeslots_count():
     # Arrange
-    liste_creneaux = [creneaux.lundi_midi(), creneaux.lundi_soir()]
-    liste_blocs = [blocs.bloc_longueur_1()]
-    planner = MenuPlanner()
-
-    # Act / Assert
-    with pytest.raises(ValueError) :
-        planner.planifier(liste_creneaux,liste_blocs)
-
-
-def test_planifier_leve_une_erreur_si_somme_longueur_blocs_superieur_au_nombre_creneaux():
-    # Arrange
-    liste_creneaux = [creneaux.lundi_midi()]
-    liste_blocs = [blocs.bloc_longueur_2()]
+    timeslots_list = [timeslots.monday_lunch(), timeslots.monday_dinner()]
+    mealblocks_list = [mealblocks.length_1_mealblock()]
     planner = MenuPlanner()
 
     # Act / Assert
     with pytest.raises(ValueError):
-        planner.planifier(liste_creneaux,liste_blocs)
+        planner.plan(timeslots_list, mealblocks_list)
+
+
+def test_plan_raises_error_if_mealblocks_length_sum_is_greater_than_timeslots_count():
+    # Arrange
+    timeslots_list = [timeslots.monday_lunch()]
+    mealblocks_list = [mealblocks.length_2_mealblock()]
+    planner = MenuPlanner()
+
+    # Act / Assert
+    with pytest.raises(ValueError):
+        planner.plan(timeslots_list, mealblocks_list)
+
+
+def test_plan_raises_error_if_a_mealblock_has_zero_length():
+    # Arrange
+    timeslots_list = [timeslots.monday_lunch()]
+    mealblocks_list = [mealblocks.zero_length_mealblock()]
+    planner = MenuPlanner()
+
+    # Act / Assert
+    with pytest.raises(ValueError):
+        planner.plan(timeslots_list, mealblocks_list)

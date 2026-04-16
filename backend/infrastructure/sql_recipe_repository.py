@@ -1,13 +1,13 @@
-from domain.recette import Recette
+from backend.domain.recipe import Recipe
 from psycopg import Connection
 from uuid import UUID
 
+
 class SqlRecipeRepository:
-    
-    def __init__(self,conn : Connection) -> None:
+    def __init__(self, conn: Connection) -> None:
         self._conn = conn
 
-    def find_by_id(self, recette_id : UUID) -> Recette | None:
+    def find_by_id(self, recette_id: UUID) -> Recipe | None:
 
         with self._conn.cursor() as cur:
             cur.execute("SELECT * FROM recettes WHERE id = %s;", (recette_id,))
@@ -15,22 +15,34 @@ class SqlRecipeRepository:
 
         if result is None:
             return None
-        
-        id_, nom, description, temps_preparation, nombre_repas = result
-        return Recette(id=id_, nom=nom, description = description, temps_preparation = temps_preparation, nombre_repas=nombre_repas)
-    
-    def list_recipes(self) -> list[Recette]:
+
+        id_, name, description, cooking_time, number_meals = result
+        return Recipe(
+            id=id_,
+            name=name,
+            description=description,
+            cooking_time=cooking_time,
+            number_meals=number_meals,
+        )
+
+    def list_recipes(self) -> list[Recipe]:
 
         with self._conn.cursor() as cur:
             cur.execute("SELECT * FROM recettes ORDER BY nom")
             result = cur.fetchall()
 
         return [
-        Recette(id=id_, nom=nom, description = description, temps_preparation = temps_preparation, nombre_repas=nombre_repas)
-        for id_, nom, description, temps_preparation, nombre_repas in result
+            Recipe(
+                id=id_,
+                name=name,
+                description=description,
+                cooking_time=cooking_time,
+                number_meals=number_meals,
+            )
+            for id_, name, description, cooking_time, number_meals in result
         ]
-    
-    def add_recipe(self, recette: Recette) -> Recette:
+
+    def add_recipe(self, recette: Recipe) -> Recipe:
         with self._conn.cursor() as cur:
             cur.execute(
                 """
@@ -39,30 +51,30 @@ class SqlRecipeRepository:
                 RETURNING id;
                 """,
                 (
-                    recette.nom,
+                    recette.name,
                     recette.description,
-                    recette.temps_preparation,
-                    recette.nombre_repas,
+                    recette.cooking_time,
+                    recette.number_meals,
                 ),
             )
             row = cur.fetchone()
 
             if row is None:
                 raise RuntimeError("INSERT failed: no id returned")
-            
+
             generated_id = row[0]
 
         self._conn.commit()
 
-        return Recette(
+        return Recipe(
             id=generated_id,
-            nom=recette.nom,
+            name=recette.name,
             description=recette.description,
-            temps_preparation=recette.temps_preparation,
-            nombre_repas=recette.nombre_repas,
+            cooking_time=recette.cooking_time,
+            number_meals=recette.number_meals,
         )
 
-    def update_recipe(self, recette: Recette) -> None:
+    def update_recipe(self, recette: Recipe) -> None:
 
         with self._conn.cursor() as cur:
             cur.execute(
@@ -75,16 +87,16 @@ class SqlRecipeRepository:
                 WHERE id = %s;
                 """,
                 (
-                    recette.nom,
+                    recette.name,
                     recette.description,
-                    recette.temps_preparation,
-                    recette.nombre_repas,
+                    recette.cooking_time,
+                    recette.number_meals,
                     recette.id,
                 ),
             )
 
             if cur.rowcount == 0:
-                raise ValueError(f"Recette introuvable : {recette.id}")
+                raise ValueError(f"Recipe not found : {recette.id}")
 
         self._conn.commit()
 
@@ -96,12 +108,10 @@ class SqlRecipeRepository:
                 DELETE FROM recettes
                 WHERE id = %s;
                 """,
-                (
-                    recette_id,
-                ),
+                (recette_id,),
             )
 
             if cur.rowcount == 0:
-                raise ValueError(f"Recette introuvable : {recette_id}")
+                raise ValueError(f"Recipe not found : {recette_id}")
 
         self._conn.commit()
