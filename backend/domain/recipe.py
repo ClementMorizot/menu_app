@@ -11,3 +11,10 @@ class Recipe:
     description: str
     cooking_time: int
     number_meals: int
+
+@dataclass(frozen=True)  # Immutable data class
+class NewRecipe:
+    name: str
+    description: str
+    cooking_time: int
+    number_meals: int
