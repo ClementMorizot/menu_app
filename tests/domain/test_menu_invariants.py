@@ -1,5 +1,5 @@
-from backend.tests.test_objects import mealblocks
-from backend.tests.test_objects import timeslots
+from tests.test_objects import mealblocks
+from tests.test_objects import timeslots
 from backend.domain.menu import Menu
 import pytest
 

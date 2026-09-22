@@ -1,17 +1,24 @@
-from backend.tests.test_objects import recipes
+from tests.test_objects import recipes
 from backend.domain.mealblock import MealBlock
 from backend.domain.generator import MealBlockGenerator
-from backend.tests.fakes.fake_repository import FakeRecipeRepository
+from tests.fakes.fake_recipe_repository import FakeRecipeRepository
+from backend.domain.user_exclusions import UserExclusions
+from backend.domain.system_exclusions import SystemExclusions
+from backend.domain.recipe_exclusions import RecipeExclusions
+from backend.domain.available_recipe_list import AvailableRecipeList
 import pytest
 
 # _create_mealblock(recipe) tests
-
 
 def test_create_mealblock_returns_same_length_mealblock_as_recipe_meal_count():
     # Arrange
     recipe = recipes.two_meals_recipe()
     repository = FakeRecipeRepository([recipe])
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
 
     # Act
     mealblock = generator._create_mealblock(recipe)
@@ -19,7 +26,6 @@ def test_create_mealblock_returns_same_length_mealblock_as_recipe_meal_count():
     # Assert
     assert mealblock.recipe_snapshot == recipe
     assert mealblock.length == recipe.number_meals
-
 
 @pytest.mark.parametrize(
     "recipe_factory, expected_length",
@@ -36,15 +42,17 @@ def test_create_mealblock_returns_correct_mealblock_length_for_multiple_meal_cou
 ):
     recipe = recipe_factory()
     repository = FakeRecipeRepository([recipe])
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
 
     mealblock = generator._create_mealblock(recipe)
 
     assert mealblock.length == expected_length
 
-
 # generate_mealblocks(meal_count) tests
-
 
 def test_generate_mealblocks_when_repository_provides_the_exact_amount_of_recipes():
     # Arrange
@@ -52,7 +60,11 @@ def test_generate_mealblocks_when_repository_provides_the_exact_amount_of_recipe
     recipe_1 = recipes.one_meal_recipe()
     recipe_2 = recipes.two_meals_recipe()
     repository = FakeRecipeRepository([recipe_1, recipe_2])
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
 
     # Act
     mealblocks_list = generator.generate_mealblocks(meal_count)
@@ -73,17 +85,19 @@ def test_generate_mealblocks_when_repository_provides_the_exact_amount_of_recipe
     recipes_ids = {recipe_1.id, recipe_2.id}
     assert all(mb.recipe_snapshot.id in recipes_ids for mb in mealblocks_list)
 
-
 def test_generate_mealblocks_when_repository_is_empty():
     # Arrange
     meal_count = 1
     repository = FakeRecipeRepository([])
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
 
     # Act / Assert
     with pytest.raises(ValueError):
         generator.generate_mealblocks(meal_count)
-
 
 def test_generate_mealblocks_when_repository_is_insufficient():
     # Arrange
@@ -91,12 +105,15 @@ def test_generate_mealblocks_when_repository_is_insufficient():
     recipe_1 = recipes.one_meal_recipe()
     recipe_2 = recipes.two_meals_recipe()
     repository = FakeRecipeRepository([recipe_1, recipe_2])
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
 
     # Act / Assert
     with pytest.raises(ValueError):
         generator.generate_mealblocks(meal_count)
-
 
 def test_generate_mealblocks_for_a_full_week():
     # Arrange
@@ -120,7 +137,11 @@ def test_generate_mealblocks_for_a_full_week():
         recipe_3_bis,
     ]
     repository = FakeRecipeRepository(recipes_list)
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
 
     # Act
     mealblocks_list = generator.generate_mealblocks(meal_count)
@@ -141,13 +162,16 @@ def test_generate_mealblocks_for_a_full_week():
     recipes_ids = {recipe.id for recipe in recipes_list}
     assert all(mb.recipe_snapshot.id in recipes_ids for mb in mealblocks_list)
 
-
 def test_generate_mealblocks_for_only_one_block():
     # Arrange
     meal_count = 3
     recipe = recipes.three_meals_recipe()
     repository = FakeRecipeRepository([recipe])
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
 
     # Act
     mealblocks_list = generator.generate_mealblocks(meal_count)
@@ -166,9 +190,33 @@ def test_generate_mealblocks_for_only_one_block():
     # 4. count mealblock = 1
     assert len(mealblocks_list) == 1
 
+def test_generate_mealblocks_ignores_excluded_recipes():
+    # Arrange
+    meal_count = 2
+    recipe_1 = recipes.one_meal_recipe()
+    recipe_2 = recipes.one_meal_recipe_2()
+    recipe_3 = recipes.one_meal_recipe_3()
+    repository = FakeRecipeRepository([recipe_1, recipe_2, recipe_3])
+    user_exclusions = UserExclusions()
+    user_exclusions.add_user_exclusion(recipe_1.id)
+    system_exclusion = SystemExclusions()
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
+
+    # Act
+    mealblocks_list = generator.generate_mealblocks(meal_count)
+
+    # Assert
+    generated_recipe_ids = {
+        block.recipe_snapshot.id
+        for block in mealblocks_list
+    }
+
+    assert recipe_1.id not in generated_recipe_ids
+    assert generated_recipe_ids == {recipe_2.id, recipe_3.id}
 
 # generate_replacement_mealblock tests
-
 
 def test_generate_replacement_mealblock_with_minimum_viable_repository():
     # Arrange
@@ -177,13 +225,17 @@ def test_generate_replacement_mealblock_with_minimum_viable_repository():
     recipe_2 = recipes.two_meals_recipe()
     recipes_list = [recipe_1, recipe_1_bis, recipe_2]
     repository = FakeRecipeRepository(recipes_list)
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    system_exclusion.add_system_exclusion(recipe_1.id)
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
     mealblock_length = 1
-    excluded_recipes = [recipe_1]
 
     # Act
     new_mealblock = generator.generate_replacement_mealblock(
-        mealblock_length, excluded_recipes
+        mealblock_length
     )
 
     # Assert
@@ -199,10 +251,15 @@ def test_generate_replacement_mealblock_chooses_allowed_recipe_between_many_in_r
     recipe_1_ter = recipes.one_meal_recipe_3()
     recipes_list = [recipe_1, recipe_1_bis, recipe_1_ter]
     repository = FakeRecipeRepository(recipes_list)
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    system_exclusion.add_system_exclusion(recipe_1.id)
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
 
     # Act
-    new_mealblock = generator.generate_replacement_mealblock(1, [recipe_1])
+    new_mealblock = generator.generate_replacement_mealblock(1)
 
     # Assert
     assert new_mealblock.length == 1
@@ -217,13 +274,17 @@ def test_generate_replacement_mealblock_with_length_less_than_1():
     recipe_2 = recipes.one_meal_recipe_3()
     recipes_list = [recipe_1, recipe_1_bis, recipe_2]
     repository = FakeRecipeRepository(recipes_list)
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    system_exclusion.add_system_exclusion(recipe_1.id)
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
     mealblock_length = 0
-    excluded_recipes = [recipe_1]
 
     # Act / assert
     with pytest.raises(ValueError):
-        _ = generator.generate_replacement_mealblock(mealblock_length, excluded_recipes)
+        generator.generate_replacement_mealblock(mealblock_length)
 
 
 def test_generate_replacement_mealblock_without_allowed_recipes_in_repository():
@@ -233,26 +294,34 @@ def test_generate_replacement_mealblock_without_allowed_recipes_in_repository():
     recipe_2 = recipes.two_meals_recipe()
     recipes_list = [recipe_1, recipe_1_bis, recipe_2]
     repository = FakeRecipeRepository(recipes_list)
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    system_exclusion.add_system_exclusion(recipe_1.id)
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
     mealblock_length = max(recipe.number_meals for recipe in recipes_list) + 1
-    excluded_recipes = [recipe_1]
 
     # Act / assert
     with pytest.raises(ValueError):
-        _ = generator.generate_replacement_mealblock(mealblock_length, excluded_recipes)
+        generator.generate_replacement_mealblock(mealblock_length)
 
 
-def test_generate_replacement_mealblock_takes_exclusion_list_into_account_when_generating_replacement_block():
+def test_generate_replacement_mealblock_raises_when_matching_recipe_is_excluded():
     # Arrange
     recipe_1 = recipes.one_meal_recipe()
     recipe_1_bis = recipes.one_meal_recipe_2()
     recipe_2 = recipes.two_meals_recipe()
     recipes_list = [recipe_1, recipe_1_bis, recipe_2]
     repository = FakeRecipeRepository(recipes_list)
-    generator = MealBlockGenerator(repository)
+    user_exclusions = UserExclusions()
+    system_exclusion = SystemExclusions()
+    system_exclusion.add_system_exclusion(recipe_2.id)
+    recipe_exclusions = RecipeExclusions(user_exclusions, system_exclusion)
+    recipe_list = AvailableRecipeList(repository, recipe_exclusions)
+    generator = MealBlockGenerator(recipe_list)
     mealblock_length = 2
-    excluded_recipes = [recipe_2]
 
     # Act / assert
     with pytest.raises(ValueError):
-        _ = generator.generate_replacement_mealblock(mealblock_length, excluded_recipes)
+        generator.generate_replacement_mealblock(mealblock_length)

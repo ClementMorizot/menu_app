@@ -117,7 +117,7 @@ def menu_for_reroll() -> Menu:
 
 
 def menu_with_one_length_3_mealblock() -> Menu:
-    mealblock = mealblocks.length_3_mealblock()
+    mealblock = mealblocks.length_3_mealblock_2()
 
     return menu_from_mapping(
         [
@@ -138,5 +138,14 @@ def menu_with_two_length_2_mealblock() -> Menu:
             (timeslots.monday_dinner(), block_1),
             (timeslots.tuesday_lunch(), block_2),
             (timeslots.tuesday_dinner(), block_2),
+        ]
+    )
+
+def menu_with_no_associated_ingredients():
+    block = mealblocks.length_1_mealblock_4()
+
+    return menu_from_mapping(
+        [
+            (timeslots.monday_lunch(), block)
         ]
     )
