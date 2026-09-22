@@ -1,20 +1,20 @@
 # domain/generator.py
 import random
-from backend.domain.repositories import RecipeRepository
+from backend.domain.available_recipe_list import AvailableRecipeList
 from backend.domain.mealblock import MealBlock
 from backend.domain.recipe import Recipe
 
 
 class MealBlockGenerator:
-    def __init__(self, recipe_repository: RecipeRepository):
-        self._recipe_repository = recipe_repository
+    def __init__(self, available_recipe_list: AvailableRecipeList):
+        self._available_recipe_list = available_recipe_list
 
     def _create_mealblock(self, recipe: Recipe) -> MealBlock:
         # block snapshot (V1) : recipe is stored as it is
         return MealBlock(recipe_snapshot=recipe, length=recipe.number_meals)
 
     def generate_mealblocks(self, number_meals: int) -> list[MealBlock]:
-        recipes = self._recipe_repository.list_recipes()
+        recipes = self._available_recipe_list.generate_available_recipe_list()
         if not recipes:
             raise ValueError("No recipe available")
 
@@ -50,17 +50,16 @@ class MealBlockGenerator:
         return blocks
 
     def generate_replacement_mealblock(
-        self, block_length: int, excluded_recipes: list[Recipe]
+        self, block_length: int
     ) -> MealBlock:
         if block_length < 1:
             raise ValueError("Mealblock length must be greater than 0.")
 
-        available_recipes = self._recipe_repository.list_recipes()
-
+        available_recipes = self._available_recipe_list.generate_available_recipe_list()
         recipes_candidates = [
             recipe
             for recipe in available_recipes
-            if recipe.number_meals == block_length and recipe not in excluded_recipes
+            if recipe.number_meals == block_length
         ]
 
         if not recipes_candidates:
