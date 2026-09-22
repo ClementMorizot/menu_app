@@ -7,104 +7,787 @@ VALUES ('Printemps'),
     ('Toutes saisons');
 -- UNITES
 INSERT INTO unites (nom)
-VALUES ('g'),
+VALUES ('mg'),
+    ('g'),
     ('kg'),
     ('mL'),
+    ('cL'),
     ('L'),
-    ('cuillère à soupe'),
-    ('cuillère à café'),
-    ('pincée');
+    ('tablespoon'),
+    ('teaspoon'),
+    ('bunch'),
+    ('pack'),
+    ('unit');
 -- INGREDIENTS
-INSERT INTO ingredients (nom)
-VALUES ('Poulet'),
-    ('Boeuf'),
-    ('Porc'),
-    ('Poisson'),
-    ('Oeuf'),
-    ('Lait'),
-    ('Farine'),
-    ('Sucre'),
-    ('Sel'),
-    ('Poivre'),
-    ('Ail'),
-    ('Oignon'),
-    ('Tomate'),
-    ('Coulis de tomates'),
-    ('Concentré de tomates'),
-    ('Champignon'),
-    ('Courgette'),
-    ('Aubergine'),
-    ('Carotte'),
-    ('Pomme de terre'),
-    ('Riz'),
-    ('Pâtes'),
-    ('Fromage'),
-    ('Crème fraîche'),
-    ('Lardons'),
-    ('Pâte brisée'),
-    ('Beurre'),
-    ('Huile d olive'),
-    ('Vinaigre'),
-    ('Herbes de Provence'),
-    ('Basilic'),
-    ('Thym'),
-    ('Romarin'),
-    ('Curry'),
-    ('Paprika'),
-    ('Cumin'),
-    ('Gingembre'),
-    ('Cannelle'),
-    ('Clou de girofle'),
-    ('Muscade'),
-    ('Anis étoilé'),
-    ('Fenouil'),
-    ('Coriandre'),
-    ('Curcuma'),
-    ('Piment'),
-    ('Safran'),
-    ('Vanille'),
-    ('Chocolat'),
-    ('Fraise'),
-    ('Framboise'),
-    ('Myrtille'),
-    ('Citron'),
-    ('Orange'),
-    ('Banane'),
-    ('Pomme'),
-    ('Poire'),
-    ('Cerise'),
-    ('Abricot'),
-    ('Prune'),
-    ('Melon'),
-    ('Pastèque'),
-    ('Kiwi'),
-    ('Mangue'),
-    ('Ananas'),
-    ('Noix de coco'),
-    ('Amande'),
-    ('Noisette'),
-    ('Pistache'),
-    ('Cacahuète'),
-    ('Noix'),
-    ('Châtaigne'),
-    ('Lentille'),
-    ('Pois chiche'),
-    ('Haricot'),
-    ('Quinoa'),
-    ('Semoule'),
-    ('Boulgour'),
-    ('Orge'),
-    ('Avoine'),
-    ('Sarrasin'),
-    ('Raisin'),
-    ('Miel'),
-    ('Sirop d érable'),
-    ('Sirop de glucose'),
-    ('Levure chimique'),
-    ('Bicarbonate de soude'),
-    ('Gélatine'),
-    ('Poivron'),
-    ('Agar-agar');
+INSERT INTO ingredients (nom, unite_standard_id)
+VALUES (
+        'Poulet',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Boeuf',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Porc',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Poisson',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Oeuf',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Lait',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'mL'
+        )
+    ),
+    (
+        'Farine',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Sucre',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Sel',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'bunch'
+        )
+    ),
+    (
+        'Poivre',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'bunch'
+        )
+    ),
+    (
+        'Ail',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Oignon',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Tomate',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Coulis de tomates',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'pack'
+        )
+    ),
+    (
+        'Concentré de tomates',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'pack'
+        )
+    ),
+    (
+        'Champignon',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Courgette',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Aubergine',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Carotte',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Pomme de terre',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Riz',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Pâtes',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Fromage',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Crème fraîche',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'mL'
+        )
+    ),
+    (
+        'Lardons',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Pâte brisée',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Beurre',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Huile d olive',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Vinaigre',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'mL'
+        )
+    ),
+    (
+        'Herbes de Provence',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Basilic',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Thym',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Romarin',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Curry',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Paprika',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Cumin',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Gingembre',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Cannelle',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Clou de girofle',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Muscade',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Anis étoilé',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Fenouil',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Coriandre',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Curcuma',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Piment',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Safran',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Vanille',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'teaspoon'
+        )
+    ),
+    (
+        'Chocolat',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Fraise',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Framboise',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Myrtille',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Citron',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Orange',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Banane',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Pomme',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Poire',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Cerise',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Abricot',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Prune',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Melon',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Pastèque',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Kiwi',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Mangue',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Ananas',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    ),
+    (
+        'Noix de coco',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Amande',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Noisette',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Pistache',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Cacahuète',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Noix',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Châtaigne',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Lentille',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Pois chiche',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Haricot',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Quinoa',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Semoule',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Boulgour',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Orge',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Avoine',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Sarrasin',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Raisin',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Miel',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'mL'
+        )
+    ),
+    (
+        'Sirop d érable',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'mL'
+        )
+    ),
+    (
+        'Sirop de glucose',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'mL'
+        )
+    ),
+    (
+        'Levure chimique',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Bicarbonate de soude',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Gélatine',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Poivron',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Agar-agar',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Crevettes',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Olives',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Mozzarella',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Pain',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Jambon',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Céréales',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'g'
+        )
+    ),
+    (
+        'Bouillon de légumes',
+        (
+            SELECT id
+            FROM unites
+            WHERE nom = 'unit'
+        )
+    );
 -- RECETTES
 INSERT INTO recettes (
         nom,
@@ -135,7 +818,8 @@ VALUES (
         'Un mélange de légumes mijotés à la provençale, comprenant des courgettes, des aubergines, des poivrons et des tomates.',
         30,
         2
-    ) (
+    ),
+    (
         'Tarte aux fromages',
         'Une tarte feuilletée avec des fromages fondus dessus.',
         45,
@@ -219,7 +903,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à soupe'
+            WHERE nom = 'tablespoon'
         )
     ),
     (
@@ -237,7 +921,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'g'
+            WHERE nom = 'unit'
         )
     ),
     (
@@ -273,7 +957,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à soupe'
+            WHERE nom = 'tablespoon'
         )
     ),
     (
@@ -291,7 +975,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à café'
+            WHERE nom = 'bunch'
         )
     ),
     (
@@ -309,7 +993,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à café'
+            WHERE nom = 'bunch'
         )
     ),
     (
@@ -365,7 +1049,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'g'
+            WHERE nom = 'pack'
         )
     ),
     (
@@ -383,7 +1067,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'g'
+            WHERE nom = 'pack'
         )
     ),
     (
@@ -415,11 +1099,11 @@ VALUES (
             FROM ingredients
             WHERE nom = 'Ail'
         ),
-        2,
+        1,
         (
             SELECT id
             FROM unites
-            WHERE nom = 'g'
+            WHERE nom = 'unit'
         )
     ),
     (
@@ -437,7 +1121,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à soupe'
+            WHERE nom = 'tablespoon'
         )
     ),
     (
@@ -455,7 +1139,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à café'
+            WHERE nom = 'bunch'
         )
     ),
     (
@@ -473,7 +1157,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à café'
+            WHERE nom = 'bunch'
         )
     ),
     (
@@ -529,7 +1213,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'g'
+            WHERE nom = 'unit'
         )
     ),
     (
@@ -565,7 +1249,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à café'
+            WHERE nom = 'bunch'
         )
     ),
     (
@@ -583,7 +1267,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à café'
+            WHERE nom = 'bunch'
         )
     ),
     (
@@ -601,7 +1285,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'g'
+            WHERE nom = 'unit'
         )
     );
 -- Exemple d'insertion pour la recette "Ratatouille"
@@ -711,7 +1395,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'g'
+            WHERE nom = 'unit'
         )
     ),
     (
@@ -729,7 +1413,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à soupe'
+            WHERE nom = 'tablespoon'
         )
     ),
     (
@@ -747,7 +1431,7 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à café'
+            WHERE nom = 'bunch'
         )
     ),
     (
@@ -765,9 +1449,75 @@ VALUES (
         (
             SELECT id
             FROM unites
-            WHERE nom = 'cuillère à café'
+            WHERE nom = 'bunch'
         )
     );
+-- Associations des huit recettes restantes.
+INSERT INTO recette_ingredients (recette_id, ingredient_id, quantite, unite_id)
+SELECT recettes.id,
+    ingredients.id,
+    associations.quantite,
+    unites.id
+FROM (
+        VALUES ('Tarte aux fromages', 'Fromage', 250, 'g'),
+            ('Tarte aux fromages', 'Pâte brisée', 1, 'unit'),
+            ('Tarte aux fromages', 'Crème fraîche', 100, 'mL'),
+            ('Steak et patates sautées', 'Boeuf', 250, 'g'),
+            (
+                'Steak et patates sautées',
+                'Pomme de terre',
+                400,
+                'g'
+            ),
+            ('Steak et patates sautées', 'Beurre', 20, 'g'),
+            ('Pizza 4 fromages', 'Fromage', 300, 'g'),
+            ('Pizza 4 fromages', 'Farine', 300, 'g'),
+            (
+                'Pizza 4 fromages',
+                'Coulis de tomates',
+                1,
+                'pack'
+            ),
+            (
+                'Pizza 4 fromages',
+                'Huile d olive',
+                1,
+                'tablespoon'
+            ),
+            ('Pates crevettes curry', 'Pâtes', 250, 'g'),
+            ('Pates crevettes curry', 'Crevettes', 200, 'g'),
+            (
+                'Pates crevettes curry',
+                'Crème fraîche',
+                150,
+                'mL'
+            ),
+            ('Pates crevettes curry', 'Curry', 2, 'teaspoon'),
+            ('Ragout de boeuf', 'Boeuf', 500, 'g'),
+            ('Ragout de boeuf', 'Pomme de terre', 500, 'g'),
+            ('Ragout de boeuf', 'Carotte', 300, 'g'),
+            ('Ragout de boeuf', 'Oignon', 150, 'g'),
+            ('Ragout de boeuf', 'Olives', 100, 'g'),
+            ('Ragout de boeuf', 'Pois chiche', 200, 'g'),
+            ('Risotto de poulet', 'Riz', 300, 'g'),
+            ('Risotto de poulet', 'Poulet', 300, 'g'),
+            ('Risotto de poulet', 'Oignon', 100, 'g'),
+            (
+                'Risotto de poulet',
+                'Bouillon de légumes',
+                1,
+                'unit'
+            ),
+            ('Risotto de poulet', 'Mozzarella', 125, 'g'),
+            ('Tartines de fromage', 'Pain', 200, 'g'),
+            ('Tartines de fromage', 'Fromage', 100, 'g'),
+            ('Tartines de fromage', 'Jambon', 100, 'g'),
+            ('Bol de céréales', 'Céréales', 100, 'g'),
+            ('Bol de céréales', 'Lait', 250, 'mL')
+    ) AS associations(recette, ingredient, quantite, unite)
+    JOIN recettes ON recettes.nom = associations.recette
+    JOIN ingredients ON ingredients.nom = associations.ingredient
+    JOIN unites ON unites.nom = associations.unite;
 -- RECETTE_SAISONS
 INSERT INTO recette_saisons (recette_id, saison_id)
 VALUES (
