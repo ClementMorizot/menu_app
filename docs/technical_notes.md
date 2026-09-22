@@ -1,725 +1,135 @@
-Ce document est un document de travail servant de reference projet.
-Il conserve l’etat du code, les decisions architecturales validees et les verites temporaires de la version en cours.
-Il n’a pas vocation, en l’etat, a remplacer une documentation technique formelle.
+# Menu Generator: Living Technical Reference
 
-1. OBJECTIF DU PROJET
+This document describes the application as implemented in the repository on 22 September 2026. The repository is the source of truth when this document becomes stale. The v0.1 technical memoir is a historical archive, not a specification for the current code.
 
-Concevoir une application de generation de menus hebdomadaires basee exclusivement sur les recettes personnelles de l'utilisateur.
+The terms used throughout are deliberate:
 
-Fonctionnalites visees :
+- **Code guarantee** means a property follows from the current implementation under its stated preconditions.
+- **Tested behavior** means an automated test exercises a particular path. A passing test does not establish the property for every possible state or failure.
+- **Known limitation or debt** means the implementation has a narrower contract than an architectural intention or has a deliberate simplification. It is not a claim that a future design has already been built.
 
-Generation automatique d'un menu pour une semaine (dejeuners + diners)
-Gestion des recettes (ajout / modification / suppression)
-Prise en compte des recettes couvrant plusieurs repas
-Possibilite de reroll un repas
-Generation future d'une liste de courses
-Saison optionnelle
+## 1. System scope and entry point
 
-2. ARCHITECTURE GENERALE
+Menu Generator is a Python CLI application backed by PostgreSQL. It builds a menu for 14 meal slots from stored recipes, supports rerolling a selected meal block, manages recipes and ingredients, lets the user exclude recipes, and produces a shopping list. A recipe can cover more than one slot. The `frontend/` files are empty; there is no operational web interface.
 
-Architecture en couches inspiree du DDD.
+Run the application from the repository root with `python -m backend.main`. Imports use the `backend.*` package path. `backend/main.py` is the composition root: it creates repositories and domain services, shares the exclusion objects between their consumers, creates the application services, and starts `backend/ui/cli.py`. It catches uncaught exceptions at the outermost level and closes its session-long database connection in `finally`.
 
-2.1 APPLICATION LAYER
+The code is organized into four layers inspired by DDD:
 
-orchestrator.py
-creneauxgenerator.py
+| Layer | Responsibility and boundary |
+| --- | --- |
+| `backend/domain/` | Owns the menu model, generation and editing rules, availability filtering, quantities and unit conversion, shopping-list calculation, and repository protocols. It does not import SQL or UI modules. |
+| `backend/application/` | Coordinates menu and shopping-list use cases, defines the weekly slot sequence and result objects, and controls transactions for CRUD services through a `UnitOfWork` protocol. |
+| `backend/infrastructure/` | Implements the repository protocols and Unit of Work against PostgreSQL through psycopg. SQL names and connection management live here. |
+| `backend/ui/` | Reads console input, displays results, and calls application services and orchestrators. It does not own menu planning or shopping-list calculation. |
 
-2.2 DOMAIN LAYER
+This is a dependency description, not a claim that every runtime path uses the same persistence lifetime. Section 6 documents the two connection patterns currently present.
 
-menu.py
-bloc.py
-creneau.py
-recette.py
-generator.py
-planner.py
-editor.py
-repositories.py
+## 2. Domain model and invariants
 
-2.3 INFRASTRUCTURE LAYER
+### Recipes, ingredients, blocks, and slots
 
-db_connection.py
-sql_recipe_repository.py
+`Recipe` is a frozen dataclass with `id: UUID`, `name`, `description`, `cooking_time`, and `number_meals`. `NewRecipe` holds the same creation fields without an ID. The database assigns the ID when `SqlRecipeRepository.add_recipe()` inserts a new recipe. `Recipe` has dataclass equality across all its fields; its UUID is not its only equality criterion. `Ingredient` is also frozen, with an ID, name, and standard `Unit`, but explicitly defines equality and hashing by ID. `NewIngredient` represents creation input.
 
-2.4. ENTRY POINT
+`RecipeIngredient` holds an `Ingredient`, a `Unit`, and a `Decimal` quantity. The recipe ID is supplied separately to repository methods; the value object itself does not identify its parent recipe. `ShoppingListItem` has the same measured fields for aggregated output. Both measured dataclasses reject quantities less than or equal to zero at construction. These checks do not establish that an input unit is compatible with the ingredient's standard unit; conversion checks that later.
 
-main.py
+`MealBlock` is a frozen pair of `recipe_snapshot` and `length`. Generation sets `length` to the recipe's `number_meals`. The snapshot is the recipe object held by the block; there is no persisted menu, recipe version, or historical copy mechanism. `TimeSlot` is a frozen pair of day and meal time. It accepts arbitrary strings. The application-level `TimeSlotGenerator` supplies the expected weekly values; `TimeSlot` itself does not validate them.
 
-3. MODELE DOMAINE
+### Menu as the planning boundary
 
-3.1 Recette (Object Value jusqu'en V1, Entity par la suite)
+`Menu` stores a mutable `TimeSlot -> MealBlock` dictionary and exposes a shallow copy through its `planning` property. `add_mealblock()` rejects a slot that is already occupied. `replace_mealblock()` and `delete_mealblock()` reject an unplanned slot. Other queries include `get_mealblock()`, `timeslots_for()`, `planned_timeslots()`, and `get_unique_mealblocks()`.
 
-Concept :
+The checks have precise, separate meanings:
 
-Recette persistable
-Identifiee par UUID
-Definit le nombre de repas couverts
+- `is_length_consistent()` compares each unique block's number of occurrences with its declared `length`.
+- `total_meals()` sums the lengths of unique blocks. `is_stable()` requires both `len(planning) == total_meals()` and length consistency.
+- `is_complete(expected_timeslots)` compares only the number of planned slots with the caller's expected number. A stable menu may be incomplete for a 14-slot week.
 
-Signature :
+**Code guarantee:** a duplicate slot cannot be added through `add_mealblock()`, and the query methods return the checks described above. Individual menu mutation methods do not preserve all stability conditions on their own. There is no domain-level validation of day names, meal-time names, or the weekly slot count.
 
-class Recette:
-id: UUID
-nom: str
-description : str
-temps_preparation : int
-nombre_repas: int
+## 3. Menu generation, exclusions, and reroll
 
-3.2 Bloc (Value Object)
+### Selecting and placing recipes
 
-Concept :
+`RecipeRepository` is a domain protocol. `AvailableRecipeList` asks it for all recipes and removes those excluded by `RecipeExclusions`. The latter combines `UserExclusions` and `SystemExclusions` by UUID. `is_excluded()` is true when either source contains the ID; `get_exclusion_reasons()` can return `USER`, `SYSTEM`, both, or an empty set. Each exclusion source stores a set in memory. Adding the same ID twice is idempotent, removing an absent ID raises `ValueError`, and list methods return copies. `SystemExclusions` also supports `clear()`.
 
-Snapshot immuable d'une Recette
-Couvre plusieurs creneaux
-Longueur = nombre de repas couverts
+`MealBlockGenerator.generate_mealblocks(number_meals)` obtains the currently available recipes, repeatedly chooses one with `random.choice`, and keeps a local set of used recipe IDs. It accepts a candidate only when its length fits within the remaining target. It returns blocks whose lengths sum to the request, or raises `ValueError` when no recipes are available or more than 5,000 attempts are made. The generator does not know about `TimeSlot` or construct a `Menu`. Random selection is not seeded or injected, so the same inputs need not produce the same menu. Reaching the attempt limit is not proof that no valid combination exists.
 
-V1 : snapshot simple (reference directe a Recette)
+`MenuPlanner.plan(timeslots, mealblocks)` verifies that the block lengths sum to the number of slots and that each supplied length is positive. It then places each block in successive slots and checks the resulting menu's stability. There is one placement strategy: the order of the input lists determines the result. No rule requires leftovers to fall on a following day. A duplicate `TimeSlot` in the supplied sequence is rejected indirectly when `Menu.add_mealblock()` detects the collision.
 
-Signature :
+### Weekly generation use case
 
-class Bloc:
-recette_snapshot: Recette
-longueur: int
+`TimeSlotGenerator.generate_timeslots(meal_count)` accepts 1 through 14 and returns that many entries from a fixed sequence, beginning with `sunday lunch` and ending with `saturday dinner`. `MenuOrchestrator.generate_menu()` always requests 14. Its flow is:
 
-3.2.1 Règle V1 : pas de doublon de recette dans un Menu
+1. Clear the current system exclusions.
+2. Generate the 14 slots and enough meal blocks from available recipes.
+3. Ask `MenuPlanner` to build the menu.
+4. Rebuild system exclusions from the IDs of the menu's unique blocks.
+5. Return `MenuOrchestratorResult(success, menu, message)`.
 
-En V1, un Menu ne peut contenir qu’un seul bloc par recette (via égalité de bloc).
+The generator's local used-ID set prevents reuse *within* this generation. System exclusions are updated after the completed menu exists; they are not incrementally populated while choosing blocks. A caught `ValueError` produces a functional-failure result with `menu=None`; another caught exception produces a technical-failure result with `menu=None`. Because clearing happens before the `try` block and rebuilding mutates the exclusion set step by step, this is not a general atomicity guarantee for every possible failure.
 
-Conséquences :
+### Reroll use case
 
-Le MenuGenerator ne génère jamais deux blocs issus de la même recette.
-Le MenuEditor interdit un reroll vers une recette déjà présente dans le menu.
+`MenuOrchestrator.reroll_timeslot(menu, target_timeslot)` looks up the current block, requests a replacement of exactly its length, delegates the mutation to `MenuEditor`, then rebuilds system exclusions from the updated menu. `MealBlockGenerator.generate_replacement_mealblock(length)` filters available recipes by `number_meals == length` and randomly chooses a candidate. It takes no explicit exclusion-list argument because `AvailableRecipeList` already applies user and system exclusions.
 
-Cette règle simplifie fortement la génération et l’édition du menu en V1.
-Elle pourra être assouplie dans des versions futures.
+`MenuEditor.reroll()` requires a planned target, a positive new length, a new block different from the current block and absent from the menu, and equal old and new lengths. It also checks that the old block occupies exactly its declared number of slots. It removes all of those occurrences, adds the new block in their places, and checks final stability. Selecting one slot of a multi-meal recipe therefore replaces the entire block. On success, the same `Menu` object has been mutated.
 
-3.3 Creneau (Value Object)
+**Tested behavior:** domain and application tests cover nominal single- and multi-slot rerolls, unavailable replacements, invalid targets, and repository failures before mutation. They check menu and exclusion consistency in these paths. **Known limitation:** `MenuEditor` has no rollback after it begins removing slots. The orchestrator returns the supplied menu on a caught error, but its result object does not prove that the menu remained unchanged for an error after mutation started. Rebuilding system exclusions is also not an atomic operation.
 
-Concept :
+## 4. Shopping-list calculation and units
 
-Repas planifiable
-Defini par jour + moment
+`ShoppingListGenerator` depends on `RecipeIngredientRepository`. It first requires `menu.is_stable()`. For each unique block it retrieves the recipe's measured ingredients; an empty result raises `ValueError`. Each measured ingredient is normalized to its ingredient's standard unit and added to a `Decimal` total keyed by `Ingredient`, whose equality is ID-based. The output is a list of `ShoppingListItem` objects. A multi-slot block contributes its recipe's quantities once, not once per occupied slot. The calculation does not scale quantities by the block length.
 
-Signature :
+`Unit` contains `mg`, `g`, `kg`, `mL`, `cL`, `L`, `teaspoon`, `tablespoon`, `bunch`, `pack`, and `unit`. `UNIT_CONVERSION_TO_STANDARD` accepts `mg/g/kg` for a `g` standard, `mL/cL/L` for an `mL` standard, and `teaspoon/tablespoon` for a `teaspoon` standard. The `bunch`, `pack`, and `unit` standards accept only themselves. The implementation does not convert between arbitrary dimensions or infer kitchen equivalents. An unsupported standard unit or incompatible recipe unit raises `ValueError` during normalization.
 
-class Creneau:
-jour: str
-moment: str
+`ShoppingListOrchestrator.generate(menu)` returns `ShoppingListResult(success, shopping_list, message)` and converts `ValueError` into a failure result. Other exception types are not caught there and can reach the outer `main()` exception handler. **Tested behavior:** the domain tests cover normalization, aggregation across recipes, counting a multi-slot block once, unstable menus, and missing recipe ingredients. The repository's seed defines at least one ingredient association for each of its 12 recipes, but a database populated at another time may differ. The automated suite does not constitute an end-to-end CLI shopping-list test against every possible generated menu.
 
-Note V1 :
+## 5. CRUD contracts and transaction boundary
 
-Les valeurs de "jour" et "moment" ne sont pas validées au niveau du Domain.
-Des valeurs sémantiquement invalides peuvent être instanciées.
+`backend/domain/repositories.py` defines three protocols: `RecipeRepository`, `IngredientRepository`, and `RecipeIngredientRepository`. They specify list/find/create/update/delete operations for recipes and ingredients, and retrieval/addition/replacement/deletion of a recipe's ingredient associations. SQL implementations translate between these contracts and PostgreSQL rows. `RecipeIngredientRepository.update_recipe_ingredients()` replaces the complete association list, including the possibility of an empty list.
 
-La validation de ces champs est volontairement déléguée à la couche Application / UI.
+Three application services receive a `Callable[[], UnitOfWork]` and wrap **every method** in `with self._uow_factory() as uow`:
 
-4. AGREGAT ROOT : MENU
+- `RecipeApplicationService` reads recipes and their ingredients, creates a recipe together with its associations, replaces both recipe fields and the full association list on update, and deletes associations before deleting a recipe.
+- `IngredientApplicationService` provides ingredient list/get/create/update/delete operations.
+- `RecipeIngredientApplicationService` provides direct operations on associations. It is implemented and tested but is not instantiated by `main.py`; the current CLI uses `RecipeApplicationService` for a recipe's associations.
 
-Concept :
+Write methods call `uow.commit()` after their repository operations. Read methods do not commit. `UnitOfWork` is an application protocol exposing the three repositories plus `commit()`, `rollback()`, and context-manager methods. `SqlUnitOfWork` constructs all three SQL repositories with the same connection, rolls back on an exception or on a normal exit without commit, and always closes that connection. It does not suppress exceptions. A read-only service call also reaches rollback on normal exit because no commit was requested.
 
-Maintient un mapping Dict[Creneau, Bloc]
-Empêche la collision de creneaux
-Garantit la coherence interne
+**Code guarantee for the current composition root:** `uow_factory()` in `main.py` calls `get_connection()` and constructs a fresh `SqlUnitOfWork` each time a CRUD service invokes it. Multiple SQL repository calls within one such service method use that UoW's connection. **Tested behavior:** service tests use fake UoWs to check results, commit calls, rollback calls, unknown IDs, and selected repository failures. SQL repository tests run against PostgreSQL. The fake UoW records rollback but does not restore fake repository state, and its test factories commonly return the same fake object. Those tests do not prove a fresh physical connection per call or SQL rollback semantics; there is no dedicated `SqlUnitOfWork` integration test in `tests/infrastructure/`.
 
-4.1 Invariants valides
+## 6. Persistence and connection lifetimes
 
-Un Menu est stable si :
+The PostgreSQL schema in `database/schema.sql` defines `recettes`, `unites`, `ingredients`, `recette_ingredients`, `saisons`, and `recette_saisons`. UUID primary keys use `gen_random_uuid()` from `pgcrypto`. Recipe, ingredient, and unit names are unique. A recipe has a positive `nombre_repas`; an association has a positive `quantite` and a composite `(recette_id, ingredient_id)` primary key. Foreign keys link associations and season mappings to their parent rows. The schema stores the recipe's measured unit separately from the ingredient's standard unit; unit compatibility is checked by domain conversion when building a shopping list, not by a SQL constraint. Season tables exist, but no current generation path filters by season.
 
-Le nombre total de creneaux planifies est egal au nombre total de repas declares par les blocs
-Chaque bloc est present exactement bloc.longueur fois
-Aucun creneau n'est planifie deux fois
+`database/seed.sql` populates seasons, units, ingredients, 12 recipes, their ingredient associations, and some recipe-season associations. Every seeded recipe has at least one ingredient association in the script. The seed is for a fresh development database; its plain inserts are not an idempotent migration. `backend/infrastructure/db_connection.py` contains the current local PostgreSQL connection parameters.
 
-Definition actuelle :
+There are **two connection lifetimes in the current implementation**:
 
-def est_stable(self) -> bool
+| Path | Connection and ownership |
+| --- | --- |
+| CRUD service method | `uow_factory()` opens a new connection. `SqlUnitOfWork` shares it among its repositories, commits or rolls back according to the method path, and closes it on context exit. |
+| Menu generation and shopping list | `main()` opens one connection before starting the CLI. The recipe repository used for availability and the recipe-ingredient repository used for shopping lists share it. `main()` closes it when the CLI exits or an outer exception occurs. These reads do not enter a CRUD UoW. |
 
-La stabilité du Menu est indépendante de sa complétude. Un Menu peut être stable mais incomplet vis-à-vis d’un nombre de créneaux attendu.
+This split is an observation of the present composition root, **not an architectural rule to preserve**. The two paths also mean that CRUD changes and later menu or shopping-list reads use different connections. The repository and schema establish the relevant SQL operations; this document does not assume a transaction policy beyond what the code explicitly commits, rolls back, or closes.
 
-4.2 Methodes actuelles (signatures)
+## 7. CLI responsibilities and current surface
 
-class Menu:
+The CLI offers a main menu for menu generation, recipe management, and ingredient management. The menu submenu exposes user exclusions, generation, reroll, and shopping-list display. `cli_exclusion_list.py` lets the user display, add, and remove excluded recipes; it receives the same `UserExclusions` instance that feeds `AvailableRecipeList`. That set lasts for the process and is not stored in PostgreSQL. The CLI holds the current menu in memory inside its menu submenu.
 
-def ajouter_bloc(self, creneau: Creneau, bloc: Bloc) -> None
-def remplacer_bloc(self, creneau: Creneau, nouveau_bloc: Bloc) -> None
-def supprimer_bloc(self, creneau: Creneau) -> None
-def est_planifie(self, creneau: Creneau) -> bool
-def obtenir_bloc(self, creneau: Creneau) -> Bloc
-def contient_bloc(self, bloc: Bloc) -> bool
-def creneaux_du_bloc(self, bloc: Bloc) -> list[Creneau]
-def creneaux_planifies(self) -> list[Creneau]
-def blocs_uniques(self) -> list[Bloc]
-def nombre_total_repas(self) -> int
-def verifier_coherence_longueur(self) -> bool
-def est_complet(self, nombre_creneaux_attendus: int) -> bool
-def est_stable(self) -> bool
+Recipe and ingredient menus expose list/create/update/delete flows. Recipe updates replace the entered recipe data and the complete ingredient list. `cli_helpers.py` handles display, numerical selection, unit prompts, and interactive measured-ingredient entry. The CLI performs some input checks, while SQL constraints, domain value checks, and repository errors provide additional validation. There is no uniform application-wide validation contract for every CLI input, and there are no automated UI tests in the current `tests/` tree.
 
-5. DOMAIN SERVICEs 
+## 8. Verification, guarantees, and remaining scope
 
-5.1 MENUGENERATOR
+`pytest.ini` points to `tests/` and adds the repository root to `pythonpath`. On 22 September 2026, `pytest -v` collected **157 tests and all 157 passed in 2.25 seconds**, including the PostgreSQL infrastructure tests in that environment. Tests are organized under application, domain, fakes, infrastructure, and test-object support modules. Their passing result confirms the exercised scenarios, not all possible runtime states.
 
-Concept :
+The following distinctions should remain visible when this document is updated:
 
-Produit des blocs
-Ne connait pas les creneaux
-Ne construit pas de Menu
-Pur vis-a-vis de la planification
+| Category | Current position |
+| --- | --- |
+| Code guarantees | The specific model checks, planner preconditions, generator output on successful return, UoW context behavior, and SQL constraints described above. |
+| Tested behavior | The existing nominal and selected failure paths for planning, reroll, exclusions, shopping-list calculation, CRUD services, and SQL repositories. |
+| Known limitations and debt | Random generation has a fixed attempt cap; menu and exclusion updates are not generally atomic; the connection lifetime differs between CRUD and generation/shopping paths; exclusions and menus are in memory; there is no operational web UI or season-based filtering. |
 
-Dependance :
-
-MenuGenerator depend d'un RecipeRepository pour acceder aux recettes disponibles.
-
-Contraintes validees :
-
-La somme des longueurs des blocs doit egaler le nombre de repas demande
-Pas de doublon de recette en V1
-Echec clair si generation impossible
-
-Signatures actuelles :
-
-class MenuGenerator:
-
-def __init__(self, recipe_repository: RecipeRepository)
-def creer_bloc(self, recette: Recette) -> Bloc
-def creer_liste_blocs(self, nombre_repas: int) -> list
-def creer_bloc_pour_reroll(self, longueur_bloc : int, recettes_exclues: list[Recette]) -> Bloc
-
-5.2 MENUPLANNER
-
-Concept :
-
-Prend une liste de creneaux ordonnes
-Prend une liste de blocs
-Construit un Menu stable
-
-Regles V1 :
-
-sum(bloc.longueur) == len(creneaux)
-Placement sequentiel pur
-Aucune regle metier implicite
-Verification finale via menu.est_stable()
-
-Signature actuelle :
-
-class MenuPlanner:
-
-def planifier(self, creneaux: list[Creneau], blocs: list[Bloc]) -> Menu
-
-5.3 MENUEDITOR
-
-Concept :
-
-Permet de modifier un Menu existant tout en respectant les invariants du domaine.
-
-Le MenuEditor est responsable des operations d’edition sur un Menu.
-Le MenuEditor n’introduit pas de nouvelle logique métier, il orchestre des opérations atomiques du Menu en respectant ses invariants.
-
-Responsabilite V1 :
-
-Implementer l’operation de reroll d’un bloc.
-
-Definition du reroll V1 :
-
-Un reroll :
-
-Identifie le bloc actuellement planifie sur le creneau cible
-
-Recupere tous les creneaux occupes par ce bloc
-
-Supprime toutes les occurrences de ce bloc dans le menu
-
-Insere un nouveau bloc sur exactement les memes creneaux
-
-Verifie la stabilite finale du menu
-
-Le reroll V1 est donc un remplacement "in-place".
-
-Contraintes metier V1 :
-
-Le creneau cible doit etre planifie
-Le nouveau bloc doit avoir une longueur >= 1
-Le nouveau bloc doit avoir la meme longueur que le bloc remplace
-Le nouveau bloc ne doit pas deja etre present dans le menu
-Le nouveau bloc doit referencer une recette differente de celle du bloc remplace
-Le menu doit rester stable apres l’operation
-
-Signature actuelle :
-
-class MenuEditor:
-
-def reroll(self, menu: Menu, creneau_cible: Creneau, nouveau_bloc: Bloc) -> None
-
-6. DOMAIN PORT : RECIPEREPOSITORY
-
-Concept :
-
-Interface du domaine permettant l’accès aux recettes persistées.
-
-Le repository est défini sous forme de Protocol afin de découpler complètement le domaine de l’infrastructure.
-
-Le domaine ne connait pas le mode de stockage des recettes (SQL, API, mémoire, etc.).
-
-Signature actuelle :
-
-class RecipeRepository(Protocol):
-
-def list_recipes(self) -> list[Recette]
-def find_by_id(self, recette_id: UUID) -> Recette | None
-def add_recipe(self, recette: Recette) -> None
-def update_recipe(self, recette: Recette) -> None
-def delete_recipe(self, recette_id: UUID) -> None
-
-7. APPLICATION LAYER
-
-Le Application Layer est implémenté en version V1 à travers un service principal : MenuOrchestrator.
-
-Responsabilités :
-
-Orchestrer les cas d’usage liés au Menu : génération d’un menu complet, reroll d’un créneau
-Construire les données applicatives nécessaires (créneaux V1)
-Appeler les services du domaine dans le bon ordre
-Intercepter les erreurs du domaine et les traduire en messages exploitables par l’UI
-Ne contenir aucune logique métier
-
-Dépendances :
-
-Le MenuOrchestrator reçoit ses dépendances par injection :
-
-MenuGenerator
-MenuPlanner
-MenuEditor
-CreneauxGenerator (service applicatif)
-
-7.1 CreneauxGenerator (Application Service)
-
-Responsabilité :
-
-Produire une liste ordonnée de créneaux correspondant au besoin applicatif V1.
-
-Contraintes V1 :
-
-Nombre de repas compris entre 1 et 14
-Ordre fixe :
-dimanche midi → samedi soir
-Aucune validation métier (déléguée au Domain)
-
-Signature :
-
-class CreneauxGenerator:
-    def generer_liste_creneaux(self, nombre_repas: int) -> list[Creneau]
-
-7.2 MenuOrchestrator (Application Service)
-
-Responsabilité :
-Coordonner les services du domaine pour exécuter les cas d’usage applicatifs.
-
-Cas d’usage V1 :
-Génération d’un menu (generer_menu)
-Reroll d’un créneau (reroll_creneau)
-
-Génération de menu
-
-Flux :
-Génération de 14 créneaux via CreneauxGenerator
-Génération des blocs via MenuGenerator
-Planification via MenuPlanner
-Retour d’un résultat applicatif
-
-Reroll de créneau
-
-Flux :
-Identification du bloc cible via Menu
-Extraction de la longueur du bloc
-Construction de la liste des recettes exclues (via blocs du menu)
-Génération d’un nouveau bloc compatible via MenuGenerator
-Application du reroll via MenuEditor
-Retour du résultat applicatif
-
-Contrat de sortie (commun aux use cases)
-
-class MenuOrchestratorResult:
-    succes: bool
-    menu: Menu | None
-    message: str
-
-Comportement V1 :
-
-Succès :
-succes = True
-menu modifié ou généré
-message explicite
-
-Échec métier :
-succes = False
-menu inchangé
-message utilisateur explicite
-
-Échec technique :
-succes = False
-menu inchangé
-message générique
-
-Messages V1 standardisés:
-Génération :
-succès : "Menu créé avec succès"
-échec métier : "Impossible de générer un menu avec les recettes disponibles."
-échec technique : "Une erreur technique est survenue lors de la génération du menu."
-
-Reroll :
-succès : "Repas remplacé avec succès"
-échec métier : "Impossible de remplacer ce repas avec les recettes disponibles."
-échec technique : "Une erreur technique est survenue lors du remplacement du repas."
-
-Décision importante
-
-L’orchestrator ne contient aucune logique métier : il ne sélectionne pas les recettes, il ne manipule pas directement le planning du menu.
-il délègue entièrement : la génération au MenuGenerator, la modification au MenuEditor
-
-8. INFRASTRUCTURE MAYER
-
-8.1 db_connection.py
-
-Responsabilité :
-
-Fournir une connexion PostgreSQL aux composants d’infrastructure.
-
-Rôle :
-
-Isoler la logique technique de connexion à la base
-Permettre aux repositories SQL de se concentrer sur la traduction entre SQL et objets métier
-
-8.2 SqlRecipeRepository
-
-Responsabilité :
-
-Implémenter le port RecipeRepository pour la persistance SQL des recettes.
-
-Rôle :
-
-Traduire les demandes du domaine en requêtes SQL
-Traduire les résultats SQL en objets métier Recette
-
-Méthodes implémentées :
-
-list_recipes()
-find_by_id()
-add_recipe()
-update_recipe()
-delete_recipe()
-
-Principe architectural :
-
-L’infrastructure dépend du domaine.
-Le domaine ne dépend jamais de l’infrastructure.
-
-9. ETAT ACTUEL
-
-9.1 Etat actuel
-
-Le domaine est complètement implémenté en version V1.
-L'application est complètement implémentée en version V1 (génération de menu et reroll de créneau).
-L'infrastructure SQL de base pour les recettes est implémentée.
-main.py est codé et permet une exécution console fonctionnelle de la version 0.1.
-
-Composants implémentés :
-
-Recette
-Bloc
-Creneau
-Menu
-MenuGenerator
-MenuPlanner
-MenuEditor
-RecipeRepository (Protocol)
-CreneauxGenerator
-MenuOrchestrator
-db_connection.py
-SqlRecipeRepository
-main.py
-
-10. Decisions architecturales
-
-Decision 1 (implementee)
-
-Le reroll ne fait pas partie de Menu.
-Le reroll est implemente dans un Domain Service dedie : MenuEditor.
-
-Decision 2 (implementee)
-
-La planification appartient exclusivement a MenuPlanner.
-
-Decision 3 (implementee)
-
-Role final de Menu :
-
-Stockage du planning
-Garantie des invariants
-Aucune logique d'agencement
-
-11. VERITES TEMPORAIRES CONSERVEES
-
-11.1 MenuPlanner V1 minimal
-
-Une seule strategie
-Placement sequentiel uniquement
-
-11.2 MenuGenerator non deterministe
-
-Utilise random.choice
-RNG non injecte
-max_essais = 5000 (valeur arbitraire)
-
-11.3 Saison non implemente
-
-Aucun champ saison dans Recette
-Aucun filtrage saisonnier
-
-11.4 Stabilite des recettes pendant la vie d’un Menu (V1)
-
-Hypothese V1 :
-
-Les recettes ne changent pas entre la generation d’un menu et les operations de reroll.
-
-Consequence :
-
-Les recettes sont considerees comme non modifiables tant qu’un menu actif existe.
-
-Cette contrainte est appliquee au niveau Application Layer et non au niveau Domain.
-
-Objectif :
-
-Eviter les incoherences entre les snapshots de recette contenus dans les objets Bloc et les recettes stockees dans la base.
-
-11.5 Validation des creneaux en V1
-
-Le Domain n’impose pas de validation stricte sur les valeurs de Creneau (jour, moment).
-
-Des creneaux sémantiquement invalides peuvent être instanciés.
-
-La validation est volontairement deleguee a la couche Application / UI.
-
-Objectif :
-
-Permettre un Domain simple et testable sans contrainte d’interface en V1.
-
-11.6 Mutation du Menu dans les use cases applicatifs
-
-Les opérations de type reroll modifient le Menu "in-place".
-
-Conséquences :
-
-Le Menu est un objet mutable partagé entre le Domain et l’Application Layer
-Le MenuOrchestrator retourne le même objet Menu modifié
-En cas d’échec, le Menu est garanti inchangé
-
-Cette décision simplifie la V1 mais peut évoluer vers une approche immuable dans les versions futures.
-
-12. MENTIONS BREVES
-
-Exclusions utilisateur : valide mais non implemente
-Strategies multiples futures : evolution prevue
-Snapshot Bloc : reference directe a Recette (pas de versioning)
-
-13. PRINCIPES STRUCTURANTS
-
-Separation stricte Domain / Application / Infrastructure
-Domain deterministe et testable isole
-MenuGenerator != MenuPlanner
-Menu = garant des invariants uniquement
-MenuEditor = responsable des operations de modification du Menu
-Aucune regle metier implicite non validee
-
-14 TESTS
-
-14.1 Objets de test
-
-Tous les objets de tests ont été créés :
-
-- recettes
-- blocs
-- creneaux
-- menus
-
-14.2 FakeRecipeRepository
-
-Le fake a été créé pour permettre les tests. Il suit les protocoles établis par le Repository du domaine.
-
-10.3 Tests Domain Layer
-
-Tous les tests ont été écrits et sont prêts à être exploités:
-
-- menus : test des invariants, de la complétude et de la protection face aux ajouts
-- generator : tests des méthodes creer_bloc() et creer_liste_blocs() dans des conditions optimales, limites et hostiles
-- planner : tests de la planification dans des conditions optimales, limites et hostiles. Validation de la stabilité du Menu post-opération. 
-- editor : tests du reroll dans des conditions optimales, limites et hostiles. Validation de continuité de stabilité du Menu post-opération.
-
-Note de vocabulaire:
-
-- optimales : cas nominaux
-- limites : cas frontières (longueur, somme, etc)
-- hostiles : états incohérents ou corruption des données
-
-14.4 Tests Application Layer
-
-Des tests ont été ajoutés pour valider le comportement du MenuOrchestrator.
-
-Couverture :
-
-génération de menu :
-cas nominal
-repository insuffisant
-validation du résultat applicatif
-reroll de créneau :
-cas nominal (bloc unitaire)
-cas nominal (bloc multi-repas)
-créneau non planifié
-absence de recette compatible
-
-Stratégie de test :
-
-validation du résultat applicatif (MenuOrchestratorResult)
-validation de la stabilité et complétude du menu
-validation des effets du reroll sur tous les créneaux concernés
-vérification de l’absence de mutation du menu en cas d’échec via comparaison de l’état observable (mapping creneau → bloc)
-
-14.5 Tests Infrastructure Layer
-
-Des tests ont été ajoutés pour valider :
-
-la connexion à la base PostgreSQL
-le fonctionnement du repository SQL des recettes
-les opérations de lecture, ajout, modification et suppression
-la traduction correcte entre données SQL et objets métier
-
-14.6 Résultats
-
-Les tests constituent la principale garantie de validité du domaine et de l'application et permettent leur évolution en toute sécurité.
-
-15. RESULTATS DE TEST
-
-15.1 Validation du domaine
-
-L’ensemble des tests du domaine a été exécuté avec succès.
-
-Après correction de certains tests ambigus liés à la comparaison d’objets métier, la suite de tests est stable.
-
-Résultat :
-
-100% des tests passent
-les invariants métier sont respectés dans tous les scénarios testés :
-cas nominaux
-cas limites
-cas hostiles
-
-Conclusion :
-
-Le domaine est validé en tant que boîte noire fiable pour le périmètre V1.
-
-15.2 Validation de l’application
-
-Des tests ont été implémentés pour valider le comportement du MenuOrchestrator, représentant la couche Application.
-
-Les cas d’usage testés sont :
-
-génération de menu :
-cas nominal
-échec dû à un repository insuffisant
-reroll de créneau :
-cas nominal (bloc unitaire)
-cas nominal (bloc multi-repas)
-créneau non planifié
-absence de recette compatible avec les contraintes
-
-Les tests vérifient :
-
-le respect du contrat applicatif (MenuOrchestratorResult)
-la stabilité et la complétude du Menu après opération
-la bonne application du reroll sur l’ensemble des créneaux d’un bloc
-l’absence de mutation du Menu en cas d’échec, via comparaison de son état observable
-
-Conclusion :
-
-La couche Application est validée dans le périmètre V1.
-Elle orchestre correctement les services du domaine sans introduire de logique métier.
-
-15.3 Validation de l’infrastructure
-
-Des tests ont été exécutés pour valider la connexion à la base et le comportement du SqlRecipeRepository.
-
-Les opérations testées couvrent :
-
-lecture des recettes
-recherche par identifiant
-ajout
-mise à jour
-suppression
-
-Conclusion :
-
-L’infrastructure SQL des recettes est validée dans le périmètre V1 actuellement implémenté.
-
-15.4 Validation du point d’entrée
-
-Le fichier main.py a été codé pour assembler les dépendances de l’application et exécuter un cas d’usage complet de génération de menu.
-Une exécution réelle a été réalisée avec succès.
-
-Résultat observé :
-
-L’application génère un menu exploitable et l’affiche correctement dans la console.
-
-Conclusion :
-
-La chaîne minimale complète de la version 0.1 est opérationnelle :
-repository de recettes -> génération des blocs -> planification -> résultat applicatif -> affichage console
-
-16 POINT D’ENTREE ET EXECUTION
-
-16.1 main.py
-Une fonction dédiée est utilisée pour l’affichage du menu en console. Elle parcourt les créneaux du menu et affiche la recette associée à chacun.
-
-main() joue le rôle de point d’entrée technique de l’application.
-
-Responsabilités :
-
-Instancier les dépendances nécessaires (repository, services du domaine et services applicatifs)
-Assembler ces dépendances
-Déclencher l’exécution d’un cas d’usage via MenuOrchestrator
-Afficher le résultat dans la console
-
-main() ne contient aucune logique métier.
-
-16.2 Validation V0.1
-Le comportement de main() est cohérent avec le résultat attendu.
-
-Deux cas sont observés :
-
-Succès :
-Un menu complet est généré et affiché dans le terminal
-
-Échec :
-Un message est affiché, différenciant les erreurs métier des erreurs techniques
-
-Conclusion :
-
-Le point d’entrée permet d’exécuter un cas d’usage complet de manière fiable dans le périmètre V0.1.
-
-17. LIVRABLES PRODUITS
-
-Diagramme UML de structure
-Diagramme UML d’architecture
-Diagramme UML de séquence
-Documentation de travail (mémoire technique, notes techniques)
-Architecture en couches implémentée (Domain / Application / Infrastructure)
-Suite de tests du domaine, de l’application et de l’infrastructure
-Point d’entrée exécutable main.py
-
-18. PROCHAINES ETAPES
-
-18.1. Objectifs pour la V1
-
-Remplacement du point d’entrée console par une interface utilisateur (web ou locale)
-Intégration complète des cas d’usage de gestion des recettes (ajout, modification, suppression)
-
-18.2. Futures features
-
-Gestion des exclusions utilisateur
-Filtrage saisonnier des recettes
-Gestion des utilisateurs
-Déploiement de l'application en environnement web
+The sequential planner, in-memory exclusions, and simple CLI describe current choices. More advanced planning, persisted user preferences, and a graphical interface are possible future work; they are not implemented behavior. The diagrams in `docs/UML_schematics/` are intentionally selective views of the system. This document records the contracts and caveats those diagrams omit.

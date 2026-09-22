@@ -1,0 +1,36 @@
+@startuml shopping_list
+title Shopping-list generation — main flow
+actor User
+participant CLI
+participant ShoppingListOrchestrator as App
+participant ShoppingListGenerator as Generator
+participant Menu
+participant RecipeIngredientRepository as Repository
+participant "unit_conversion.py\nnormalize_recipe_ingredient()" as Normalize
+
+User -> CLI : request shopping list
+CLI -> App : generate(menu)
+App -> Generator : generate_shopping_list(menu)
+Generator -> Menu : is_stable()
+Menu --> Generator : bool
+alt menu is stable
+  Generator -> Menu : get_unique_mealblocks()
+  Menu --> Generator : MealBlock[] (unique)
+  loop for each unique MealBlock
+    Generator -> Repository : get_ingredients_of_recipe(recipe_id)
+    Repository --> Generator : RecipeIngredient[]
+    loop for each RecipeIngredient
+      Generator -> Normalize : normalize_recipe_ingredient(recipe_ingredient)
+      Normalize --> Generator : normalized RecipeIngredient
+      Generator -> Generator : add quantity to total by Ingredient
+    end
+  end
+  Generator -> Generator : build ShoppingListItem[] from totals
+  Generator --> App : ShoppingListItem[]
+  App --> CLI : ShoppingListResult(success=True, shopping_list=items)
+else menu is unstable
+  Generator --> App : raise ValueError("Menu is unstable")
+  App --> CLI : ShoppingListResult(success=False, shopping_list=None, message="Menu is unstable")
+end
+CLI --> User : display result
+@enduml

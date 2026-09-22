@@ -1,0 +1,69 @@
+@startuml menu_generation
+title MenuOrchestrator.generate_menu() — main outcomes
+actor User
+participant CLI
+participant MenuOrchestrator as App
+participant SystemExclusions as System
+participant TimeSlotGenerator as Slots
+participant MealBlockGenerator as Blocks
+participant AvailableRecipeList as Available
+participant RecipeRepository as Recipes
+participant RecipeExclusions as Exclusions
+participant MenuPlanner as Planner
+participant Menu
+
+User -> CLI : request a menu
+CLI -> App : generate_menu()
+App -> System : clear()
+
+alt generation, planning, and exclusion population succeed
+  App -> Slots : generate_timeslots(14)
+  Slots --> App : 14 TimeSlot
+  App -> Blocks : generate_mealblocks(14)
+  Blocks -> Available : generate_available_recipe_list()
+  Available -> Recipes : list_recipes()
+  Recipes --> Available : recipes
+  loop for each recipe
+    Available -> Exclusions : is_excluded(recipe.id)
+    Exclusions --> Available : bool
+  end
+  Available --> Blocks : non-excluded recipes
+  Blocks --> App : MealBlock[]
+  App -> Planner : plan(timeslots, mealblocks)
+  Planner --> App : Menu (stable)
+  App -> System : clear()
+  App -> Menu : get_unique_mealblocks()
+  Menu --> App : unique MealBlock[]
+  loop for each unique MealBlock
+    App -> System : add_system_exclusion(block.recipe_snapshot.id)
+  end
+  App --> CLI : MenuOrchestratorResult(success=True, menu=Menu)
+else ValueError before exclusion synchronization
+  note right of App
+    A functional failure can arise while generating slots,
+    selecting blocks, or planning; it is not planner-specific.
+  end note
+  App --> CLI : MenuOrchestratorResult(success=False, menu=None)
+else unexpected exception before exclusion synchronization
+  note right of App
+    Repository access or another operation may fail.
+  end note
+  App --> CLI : MenuOrchestratorResult(success=False, menu=None)
+end
+CLI --> User : display result
+
+note right of Blocks
+Selection is random. Used recipe IDs are tracked in a
+local set only during generate_mealblocks(); the set is
+discarded when that call ends. It is not SystemExclusions.
+end note
+
+note left of System
+The depicted failure paths leave this set empty after
+the initial clear(). Successful planning is followed by
+population from the final Menu's unique blocks.
+An exception during population could leave a partial set;
+that edge case is outside the failure paths drawn here.
+end note
+
+@enduml

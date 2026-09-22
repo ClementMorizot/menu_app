@@ -1,0 +1,54 @@
+@startuml recipe_creation
+title Recipe creation — one UnitOfWork transaction
+actor Caller
+participant RecipeApplicationService as Service
+participant "uow_factory" as Factory
+box "One SqlUnitOfWork / one shared connection" #EEF5FF
+  participant SqlUnitOfWork as UoW
+  participant "SqlRecipeRepository\n(uow.recipes)" as Recipes
+  participant "SqlRecipeIngredientRepository\n(uow.recipe_ingredients)" as RecipeIngredients
+end box
+database PostgreSQL as DB
+
+Caller -> Service : create_recipe(new_recipe, recipe_ingredients)
+Service -> Factory : uow_factory()
+Factory -> UoW : create with get_connection()
+UoW -> Recipes : construct with shared connection
+UoW -> RecipeIngredients : construct with shared connection
+Factory --> Service : uow
+Service -> UoW : __enter__()
+UoW --> Service : uow
+
+alt transaction commits successfully
+  Service -> Recipes : uow.recipes.add_recipe(new_recipe)
+  Recipes -> DB : INSERT recettes ... RETURNING id
+  DB --> Recipes : database-generated UUID
+  Recipes --> Service : Recipe(id=returned UUID)
+  loop for each RecipeIngredient
+    Service -> RecipeIngredients : uow.recipe_ingredients.add_recipe_ingredient(recipe.id, item)
+    RecipeIngredients -> DB : INSERT recette_ingredients
+  end
+  Service -> UoW : commit()
+  UoW -> DB : COMMIT
+  Service -> UoW : __exit__(None, None, None)
+  UoW -> DB : close connection
+  Service --> Caller : Recipe
+else exception before successful commit
+  note over Service,RecipeIngredients
+    The exception can occur during the recipe insert,
+    an association insert, or commit. Earlier writes,
+    if any, used the same connection.
+  end note
+  Service -> UoW : __exit__(exc_type, exc_value, traceback)
+  UoW -> DB : ROLLBACK
+  UoW -> DB : close connection
+  Service --> Caller : propagate exception
+end
+
+note right of UoW
+__exit__ also rolls back on a normal exit without commit.
+It closes the connection on every exit path.
+The service calls repositories directly through uow;
+the UoW does not forward repository methods.
+end note
+@enduml

@@ -1,44 +1,78 @@
 @startuml architecture
-allow_mixing
+title Current architecture — composition and main dependencies
+top to bottom direction
 skinparam linetype ortho
-left to right direction
-title Architecture en couches - Génération de Menu (V0.1)
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
 
-package "Application Layer" {
-  class MenuOrchestrator
-  class CreneauxGenerator
+package "Composition and UI" {
+  component "main.py\nComposition Root" as Main
+  component "CLI" as CLI
 }
 
-package "Domain Layer" {
-  class Menu
-  class Bloc
-  class Creneau
-  class MenuPlanner
-  class MenuEditor
-  class Recette
-  class MenuGenerator
-  interface RecipeRepository
+package Application {
+  component "MenuOrchestrator" as MenuApp
+  component "ShoppingListOrchestrator" as ShoppingApp
+  component "CRUD services" as CRUD
+  interface "UnitOfWork" as UoW
 }
 
-package "Infrastructure Layer" {
-  class SqlRecipeRepository
+package Domain {
+  component "MealBlockGenerator" as BlockGen
+  component "MenuPlanner / MenuEditor" as Planning
+  component "AvailableRecipeList" as Available
+  component "RecipeExclusions" as CombinedEx
+  component "UserExclusions" as UserEx
+  component "SystemExclusions" as SystemEx
+  component "ShoppingListGenerator" as ShoppingGen
+  interface "Repository ports\nRecipeRepository\nIngredientRepository\nRecipeIngredientRepository" as Ports
 }
 
-package "Data Layer" {
-  database "PostgreSQL Database" as database
+package Infrastructure {
+  component "SQL repositories" as SqlRepos
+  component "SqlUnitOfWork" as SqlUoW
+  database PostgreSQL as DB
 }
 
-MenuOrchestrator -down-> MenuPlanner
-MenuOrchestrator -down-> MenuEditor
-MenuOrchestrator -down-> MenuGenerator
-MenuOrchestrator -down-> CreneauxGenerator
+Main ..> CLI : injects application services
+Main ..> MenuApp : constructs and wires
+Main ..> ShoppingApp
+Main ..> CRUD
 
-MenuGenerator -down-> RecipeRepository
-SqlRecipeRepository .down.|> RecipeRepository
-SqlRecipeRepository -down-> database
+CLI --> MenuApp
+CLI --> ShoppingApp
+CLI --> CRUD
+CLI --> UserEx : adds / removes exclusions
+MenuApp --> BlockGen
+MenuApp --> Planning
+MenuApp --> SystemEx : clears and synchronizes
+ShoppingApp --> ShoppingGen
+CRUD --> UoW
 
-Menu -[hidden]-> Bloc
-Menu -[hidden]-> Creneau
-Bloc -[hidden]-> Recette
+BlockGen --> Available
+Available --> CombinedEx : checks exclusions
+CombinedEx --> UserEx
+CombinedEx --> SystemEx
+Available --> Ports : recipes
+ShoppingGen --> Ports : recipe ingredients
 
+SqlUoW ..|> UoW
+SqlUoW --> SqlRepos : shared connection per CRUD operation
+SqlRepos ..|> Ports
+SqlRepos --> DB
+
+note right of Main
+The Composition Root also creates the domain services,
+exclusion instances, and SQL repositories, then wires
+them into the application services passed to the CLI.
+The wiring arrows shown here are intentionally selective.
+end note
+
+note bottom of SqlRepos
+Menu generation and shopping-list calculation use
+SQL repositories on a connection kept open during
+the CLI session. CRUD services create one
+SqlUnitOfWork and connection per operation.
+This is the current implementation, not a design rule.
+end note
 @enduml

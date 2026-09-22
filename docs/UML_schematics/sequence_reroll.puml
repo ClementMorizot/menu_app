@@ -1,0 +1,64 @@
+@startuml reroll
+title MenuOrchestrator.reroll_timeslot() — main outcomes
+actor User
+participant CLI
+participant MenuOrchestrator as App
+participant Menu
+participant MealBlockGenerator as Generator
+participant AvailableRecipeList as Available
+participant RecipeRepository as Recipes
+participant RecipeExclusions as Exclusions
+participant MenuEditor as Editor
+participant SystemExclusions as System
+
+User -> CLI : choose a TimeSlot
+CLI -> App : reroll_timeslot(menu, target_timeslot)
+
+alt replacement and exclusion reconstruction succeed
+  App -> Menu : get_mealblock(target_timeslot)
+  Menu --> App : current MealBlock
+  App -> Generator : generate_replacement_mealblock(current_block.length)
+  Generator -> Available : generate_available_recipe_list()
+  Available -> Recipes : list_recipes()
+  Recipes --> Available : recipes
+  loop for each recipe
+    Available -> Exclusions : is_excluded(recipe.id)
+    Exclusions --> Available : bool
+  end
+  Available --> Generator : non-excluded recipes
+  Generator -> Generator : keep recipes where number_meals == block_length
+  Generator --> App : replacement MealBlock of matching length
+  App -> Editor : reroll(menu, target_timeslot, new_mealblock)
+  Editor -> Menu : replace every occurrence of current MealBlock
+  Editor --> App : return after stability check
+  App -> System : clear()
+  App -> Menu : get_unique_mealblocks()
+  Menu --> App : unique MealBlock[]
+  loop for each unique MealBlock
+    App -> System : add_system_exclusion(block.recipe_snapshot.id)
+  end
+  App --> CLI : MenuOrchestratorResult(success=True, menu=menu)
+else ValueError before menu mutation
+  note right of App
+    An unplanned TimeSlot or no available recipe matching
+    the required block length can cause this outcome.
+    Menu and SystemExclusions remain unchanged.
+  end note
+  App --> CLI : MenuOrchestratorResult(success=False, menu=menu)
+else unexpected exception before menu mutation
+  note right of App
+    Repository access or another pre-mutation step may fail.
+    Menu and SystemExclusions remain unchanged.
+  end note
+  App --> CLI : MenuOrchestratorResult(success=False, menu=menu)
+end
+CLI --> User : display result
+
+note right of Editor
+Selecting one TimeSlot rerolls its entire MealBlock,
+including every slot of a multi-meal block. MenuEditor
+mutates the existing Menu in place. Exclusion rebuilding
+is separate; no general rollback exists after mutation
+begins, so a later exception may leave partial state.
+end note
+@enduml

@@ -1,0 +1,90 @@
+@startuml domain
+title Current domain — menu, availability, and shopping list
+left to right direction
+skinparam linetype ortho
+
+class Menu <<AggregateRoot>> {
+  -_planning : Dict[TimeSlot, MealBlock]
+  +add_mealblock(timeslot, mealblock)
+  +is_stable() : bool
+  +is_complete(expected_timeslots) : bool
+  +get_unique_mealblocks() : list
+}
+class TimeSlot <<ValueObject>> {
+  +day : str
+  +meal_time : str
+}
+class MealBlock <<ValueObject>> {
+  +recipe_snapshot : Recipe
+  +length : int
+}
+class Recipe {
+  +id : UUID
+  +name : str
+  +description : str
+  +cooking_time : int
+  +number_meals : int
+}
+class Ingredient {
+  +id : UUID
+  +name : str
+  +standard_unit : Unit
+}
+enum Unit
+class RecipeIngredient {
+  +ingredient : Ingredient
+  +unit : Unit
+  +quantity : Decimal
+}
+class ShoppingListItem {
+  +ingredient : Ingredient
+  +unit : Unit
+  +quantity : Decimal
+}
+class MealBlockGenerator <<DomainService>>
+class MenuPlanner <<DomainService>>
+class MenuEditor <<DomainService>>
+class AvailableRecipeList
+class RecipeExclusions
+class UserExclusions
+class SystemExclusions
+class ShoppingListGenerator <<DomainService>>
+interface RecipeRepository
+interface RecipeIngredientRepository
+
+Menu ..> TimeSlot : planning keys
+Menu ..> MealBlock : planning values
+MealBlock --> Recipe
+MealBlockGenerator ..> MealBlock : creates
+MenuPlanner ..> TimeSlot : receives ordered slots
+MenuPlanner ..> MealBlock : receives blocks
+MenuPlanner --> Menu : builds
+MenuEditor --> Menu : modifies
+MealBlockGenerator --> AvailableRecipeList
+AvailableRecipeList --> RecipeRepository
+AvailableRecipeList --> RecipeExclusions
+RecipeExclusions --> UserExclusions
+RecipeExclusions --> SystemExclusions
+ShoppingListGenerator --> Menu
+ShoppingListGenerator --> RecipeIngredientRepository
+ShoppingListGenerator ..> RecipeIngredient : reads
+ShoppingListGenerator ..> ShoppingListItem : creates
+RecipeIngredient --> Ingredient
+ShoppingListItem --> Ingredient
+Ingredient --> Unit : standard unit
+RecipeIngredient --> Unit : measured unit
+ShoppingListItem --> Unit : output unit
+
+note bottom of Menu
+The planning is one mapping from TimeSlot keys to
+MealBlock values, not two independent collections.
+One MealBlock can occupy several keys according to its length.
+is_stable() checks occurrence counts against block lengths;
+is_complete(n) separately checks the planned slot count.
+end note
+
+note right of ShoppingListGenerator
+Calls normalize_recipe_ingredient() from unit_conversion.py
+before aggregating quantities by Ingredient.
+end note
+@enduml
