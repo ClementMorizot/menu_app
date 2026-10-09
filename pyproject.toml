@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "menu-app"
+# Proposed initial version for this manifest.
+version = "0.1.0"
+description = "Weekly menu planning, recipe management, and shopping lists."
+readme = "README.md"
+# Python 3.13 is the documented Python version for this project.
+requires-python = ">=3.13"
+dependencies = [
+    "psycopg[binary]>=3.2,<4",
+]
+
+[project.optional-dependencies]
+# HTTP prototype: run from the repository while it imports tests.*.
+api = [
+    "fastapi>=0.115,<1",
+    "pydantic>=2,<3",
+    "uvicorn>=0.30,<1",
+]
+# Includes dependencies for the existing HTTP test; no server required.
+dev = [
+    "pytest>=8,<10",
+    "fastapi>=0.115,<1",
+    "pydantic>=2,<3",
+    "httpx2>=2.13,<3",
+]
+
+[project.scripts]
+menu-app = "backend.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend", "backend.*"]
+# Backend directories do not contain __init__.py files.
+namespaces = true
+
+# pytest.ini remains the authoritative test configuration.
