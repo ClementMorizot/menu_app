@@ -3,7 +3,6 @@ from collections.abc import Callable
 from backend.application.unit_of_work import UnitOfWork
 from backend.domain.ingredient import Ingredient, NewIngredient
 
-
 class IngredientApplicationService:
     def __init__(self, uow_factory: Callable[[], UnitOfWork]) -> None:
         self._uow_factory = uow_factory

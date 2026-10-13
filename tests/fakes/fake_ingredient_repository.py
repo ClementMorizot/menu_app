@@ -32,3 +32,22 @@ class FakeIngredientRepository:
         if ingredient_id not in self._data:
             raise ValueError("Ingredient not found")
         del self._data[ingredient_id]
+
+class FailingIngredientRepository:
+    def __init__(self, ingredients: list[Ingredient] | None = None):
+        self._data = {i.id: i for i in (ingredients or [])}
+
+    def list_ingredients(self) -> list[Ingredient]:
+        raise RuntimeError
+
+    def find_by_id(self, ingredient_id: UUID) -> Ingredient | None:
+        raise RuntimeError
+
+    def add_ingredient(self, new_ingredient: NewIngredient) -> Ingredient:
+        raise RuntimeError
+
+    def update_ingredient(self, ingredient: Ingredient) -> None:
+        raise RuntimeError
+
+    def delete_ingredient(self, ingredient_id: UUID) -> None:
+        raise RuntimeError

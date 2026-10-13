@@ -1,20 +1,18 @@
-from tests.fakes.fake_ingredient_repository import FakeIngredientRepository
 from typing import Annotated
-import tests.test_objects.ingredients as ing
-from fastapi import FastAPI, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, StringConstraints
-from uuid import UUID, uuid4
+from uuid import UUID
 from backend.domain.units import Unit
-from backend.domain.ingredient import Ingredient
+from backend.domain.ingredient import Ingredient, NewIngredient
+from backend.application.ingredient_service import IngredientApplicationService
 
-_INGREDIENTS = [
-                ing.cream(),
-                ing.garlic(),
-                ing.pasta(),
-                ing.sugar()
-            ]
+def get_ingredient_service() -> IngredientApplicationService:
+    raise NotImplementedError
 
-api = FastAPI()
+router = APIRouter(
+    prefix="/ingredients",
+    tags=["ingredients"],
+)
 
 class IngredientResponse(BaseModel):
     ingredient_name: str
@@ -28,42 +26,43 @@ class IngredientCreateRequest(BaseModel):
     ]
     ingredient_unit: Unit
 
-@api.get("/ingredients")
-def read_ingredients() -> list[IngredientResponse]:
-    output = []
-    for ingredient in _INGREDIENTS:
-        output.append({
-            "ingredient_name": ingredient.name,
-            "ingredient_unit": ingredient.standard_unit.value,
-            "ingredient_id": ingredient.id
-        })
+@router.get("")
+def read_ingredients(ias: IngredientApplicationService = Depends(get_ingredient_service)
+                     ) -> list[IngredientResponse]:
+    return [IngredientResponse(
+        ingredient_name = ingredient.name,
+        ingredient_unit = ingredient.standard_unit.value,
+        ingredient_id = ingredient.id
+    ) 
+    for ingredient in ias.list_ingredients()]
 
-    return output
-
-@api.get("/ingredients/{ingredient_id}",
+@router.get("/{ingredient_id}",
     responses= {404: {"description":"Ingredient not found"}})
-def find_ingredient_by_id(ingredient_id: UUID)->IngredientResponse:
-    for ingredient in _INGREDIENTS:
-        if ingredient.id == ingredient_id:
-            return IngredientResponse(
-            ingredient_name= ingredient.name,
-            ingredient_unit= ingredient.standard_unit.value,
-            ingredient_id= ingredient.id
-            )
-    raise HTTPException(status_code=404, detail="Ingredient not found")
+def find_ingredient_by_id(ingredient_id: UUID, 
+                          ias: IngredientApplicationService = Depends(get_ingredient_service)
+                          ) ->IngredientResponse:
+    ingredient = ias.get_ingredient(ingredient_id)
+    if ingredient is None:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
+    return IngredientResponse(
+        ingredient_name = ingredient.name,
+        ingredient_unit = ingredient.standard_unit.value,
+        ingredient_id = ingredient.id
+    )
 
-@api.post("/ingredients", status_code=status.HTTP_201_CREATED)
-def create_ingredient(new_ingredient: IngredientCreateRequest) -> IngredientResponse:
-    if new_ingredient.ingredient_name.strip() == "":
+@router.post("", status_code=status.HTTP_201_CREATED)
+def create_ingredient(input_ingredient: IngredientCreateRequest, 
+                      ias: IngredientApplicationService = Depends(get_ingredient_service)
+                      ) -> IngredientResponse:
+    if input_ingredient.ingredient_name.strip() == "":
         raise HTTPException(status_code= 422, detail= "Ingredient name cannot be empty")
 
-    #ingredient_service create_ingredient() simulation
-    ingredient = Ingredient(
-        id= uuid4(),
-        name= new_ingredient.ingredient_name,
-        standard_unit= new_ingredient.ingredient_unit
+    new_ingredient = NewIngredient(
+        name= input_ingredient.ingredient_name,
+        standard_unit= input_ingredient.ingredient_unit
     )
-    _INGREDIENTS.append(ingredient)
+
+    ingredient = ias.create_ingredient(new_ingredient)
 
     return IngredientResponse(
         ingredient_name= ingredient.name,

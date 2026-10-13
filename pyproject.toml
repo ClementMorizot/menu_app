@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "menu-app"
 # Proposed initial version for this manifest.
-version = "0.1.0"
+version = "0.2.0"
 description = "Weekly menu planning, recipe management, and shopping lists."
 readme = "README.md"
 # Python 3.13 is the documented Python version for this project.
