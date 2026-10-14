@@ -25,12 +25,12 @@ class FakeIngredientRepository:
 
     def update_ingredient(self, ingredient: Ingredient) -> None:
         if ingredient.id not in self._data:
-            raise ValueError("Ingredient not found")
+            raise ValueError(f"Ingredient not found: {ingredient.id}")
         self._data[ingredient.id] = ingredient
 
     def delete_ingredient(self, ingredient_id: UUID) -> None:
         if ingredient_id not in self._data:
-            raise ValueError("Ingredient not found")
+            raise ValueError(f"Ingredient not found: {ingredient_id}")
         del self._data[ingredient_id]
 
 class FailingIngredientRepository:

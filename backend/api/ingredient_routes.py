@@ -19,7 +19,7 @@ class IngredientResponse(BaseModel):
     ingredient_unit: str
     ingredient_id: UUID
 
-class IngredientCreateRequest(BaseModel):
+class IngredientPayload(BaseModel):
     ingredient_name: Annotated[
         str,
         StringConstraints(strip_whitespace=True, min_length=1)
@@ -51,7 +51,7 @@ def find_ingredient_by_id(ingredient_id: UUID,
     )
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def create_ingredient(input_ingredient: IngredientCreateRequest, 
+def create_ingredient(input_ingredient: IngredientPayload, 
                       ias: IngredientApplicationService = Depends(get_ingredient_service)
                       ) -> IngredientResponse:
     if input_ingredient.ingredient_name.strip() == "":
@@ -69,3 +69,40 @@ def create_ingredient(input_ingredient: IngredientCreateRequest,
         ingredient_unit= ingredient.standard_unit.value,
         ingredient_id= ingredient.id
     )
+
+@router.put("/{ingredient_id}")
+def update_ingredient(ingredient_id: UUID, 
+                      input_ingredient: IngredientPayload,
+                      ias: IngredientApplicationService = Depends(get_ingredient_service)
+                    ) -> IngredientResponse:
+
+    updated_ingredient = Ingredient(
+        id= ingredient_id,
+        name= input_ingredient.ingredient_name,
+        standard_unit= input_ingredient.ingredient_unit
+    )
+
+    try : 
+        ias.update_ingredient(updated_ingredient)
+        return IngredientResponse(
+            ingredient_name= updated_ingredient.name,
+            ingredient_unit= updated_ingredient.standard_unit.value,
+            ingredient_id = updated_ingredient.id
+        )
+    except ValueError as error:
+        if str(error) == f"Ingredient not found: {updated_ingredient.id}":
+            raise HTTPException(status_code= 404, detail= "Ingredient not found") from error
+        else:
+            raise
+
+@router.delete("/{ingredient_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_ingredient(ingredient_id: UUID, 
+                      ias: IngredientApplicationService = Depends(get_ingredient_service)
+                    ) :
+    try : 
+        ias.delete_ingredient(ingredient_id)
+    except ValueError as error:
+        if str(error) == f"Ingredient not found: {ingredient_id}":
+            raise HTTPException(status_code= 404, detail= "Ingredient not found") from error
+        else:
+            raise
