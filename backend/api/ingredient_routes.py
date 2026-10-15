@@ -5,9 +5,7 @@ from uuid import UUID
 from backend.domain.units import Unit
 from backend.domain.ingredient import Ingredient, NewIngredient
 from backend.application.ingredient_service import IngredientApplicationService
-
-def get_ingredient_service() -> IngredientApplicationService:
-    raise NotImplementedError
+from backend.api.dependencies import ingredient_service
 
 router = APIRouter(
     prefix="/ingredients",
@@ -27,7 +25,7 @@ class IngredientPayload(BaseModel):
     ingredient_unit: Unit
 
 @router.get("")
-def read_ingredients(ias: IngredientApplicationService = Depends(get_ingredient_service)
+def read_ingredients(ias: IngredientApplicationService = Depends(ingredient_service)
                      ) -> list[IngredientResponse]:
     return [IngredientResponse(
         ingredient_name = ingredient.name,
@@ -39,7 +37,7 @@ def read_ingredients(ias: IngredientApplicationService = Depends(get_ingredient_
 @router.get("/{ingredient_id}",
     responses= {404: {"description":"Ingredient not found"}})
 def find_ingredient_by_id(ingredient_id: UUID, 
-                          ias: IngredientApplicationService = Depends(get_ingredient_service)
+                          ias: IngredientApplicationService = Depends(ingredient_service)
                           ) ->IngredientResponse:
     ingredient = ias.get_ingredient(ingredient_id)
     if ingredient is None:
@@ -52,7 +50,7 @@ def find_ingredient_by_id(ingredient_id: UUID,
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_ingredient(input_ingredient: IngredientPayload, 
-                      ias: IngredientApplicationService = Depends(get_ingredient_service)
+                      ias: IngredientApplicationService = Depends(ingredient_service)
                       ) -> IngredientResponse:
     if input_ingredient.ingredient_name.strip() == "":
         raise HTTPException(status_code= 422, detail= "Ingredient name cannot be empty")
@@ -73,7 +71,7 @@ def create_ingredient(input_ingredient: IngredientPayload,
 @router.put("/{ingredient_id}")
 def update_ingredient(ingredient_id: UUID, 
                       input_ingredient: IngredientPayload,
-                      ias: IngredientApplicationService = Depends(get_ingredient_service)
+                      ias: IngredientApplicationService = Depends(ingredient_service)
                     ) -> IngredientResponse:
 
     updated_ingredient = Ingredient(
@@ -97,7 +95,7 @@ def update_ingredient(ingredient_id: UUID,
 
 @router.delete("/{ingredient_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_ingredient(ingredient_id: UUID, 
-                      ias: IngredientApplicationService = Depends(get_ingredient_service)
+                      ias: IngredientApplicationService = Depends(ingredient_service)
                     ) :
     try : 
         ias.delete_ingredient(ingredient_id)
