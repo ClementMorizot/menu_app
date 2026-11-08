@@ -6,6 +6,7 @@ from backend.domain.units import Unit
 from backend.domain.ingredient import Ingredient, NewIngredient
 from backend.application.ingredient_service import IngredientApplicationService
 from backend.api.dependencies import ingredient_service
+from backend.domain.errors import IngredientNotFound, IngredientDuplicationError
 
 router = APIRouter(
     prefix="/ingredients",
@@ -39,34 +40,36 @@ def read_ingredients(ias: IngredientApplicationService = Depends(ingredient_serv
 def find_ingredient_by_id(ingredient_id: UUID, 
                           ias: IngredientApplicationService = Depends(ingredient_service)
                           ) ->IngredientResponse:
-    ingredient = ias.get_ingredient(ingredient_id)
-    if ingredient is None:
+    
+    try :
+        ingredient = ias.get_ingredient(ingredient_id)
+        return IngredientResponse(
+                ingredient_name = ingredient.name,
+                ingredient_unit = ingredient.standard_unit.value,
+                ingredient_id = ingredient.id)
+    except IngredientNotFound:
         raise HTTPException(status_code=404, detail="Ingredient not found")
-    return IngredientResponse(
-        ingredient_name = ingredient.name,
-        ingredient_unit = ingredient.standard_unit.value,
-        ingredient_id = ingredient.id
-    )
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_ingredient(input_ingredient: IngredientPayload, 
                       ias: IngredientApplicationService = Depends(ingredient_service)
                       ) -> IngredientResponse:
-    if input_ingredient.ingredient_name.strip() == "":
-        raise HTTPException(status_code= 422, detail= "Ingredient name cannot be empty")
 
     new_ingredient = NewIngredient(
         name= input_ingredient.ingredient_name,
         standard_unit= input_ingredient.ingredient_unit
     )
+    try:
+        ingredient = ias.create_ingredient(new_ingredient)
 
-    ingredient = ias.create_ingredient(new_ingredient)
+        return IngredientResponse(
+            ingredient_name= ingredient.name,
+            ingredient_unit= ingredient.standard_unit.value,
+            ingredient_id= ingredient.id
+        )
 
-    return IngredientResponse(
-        ingredient_name= ingredient.name,
-        ingredient_unit= ingredient.standard_unit.value,
-        ingredient_id= ingredient.id
-    )
+    except IngredientDuplicationError:
+        raise HTTPException(status_code= 409, detail="Ingredient name already used")
 
 @router.put("/{ingredient_id}")
 def update_ingredient(ingredient_id: UUID, 
@@ -87,11 +90,10 @@ def update_ingredient(ingredient_id: UUID,
             ingredient_unit= updated_ingredient.standard_unit.value,
             ingredient_id = updated_ingredient.id
         )
-    except ValueError as error:
-        if str(error) == f"Ingredient not found: {updated_ingredient.id}":
-            raise HTTPException(status_code= 404, detail= "Ingredient not found") from error
-        else:
-            raise
+    except IngredientNotFound:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
+    except IngredientDuplicationError:
+        raise HTTPException(status_code=409, detail="Ingredient name already used")
 
 @router.delete("/{ingredient_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_ingredient(ingredient_id: UUID, 
@@ -99,8 +101,5 @@ def delete_ingredient(ingredient_id: UUID,
                     ) :
     try : 
         ias.delete_ingredient(ingredient_id)
-    except ValueError as error:
-        if str(error) == f"Ingredient not found: {ingredient_id}":
-            raise HTTPException(status_code= 404, detail= "Ingredient not found") from error
-        else:
-            raise
+    except IngredientNotFound:
+        raise HTTPException(status_code=404, detail="Ingredient not found")

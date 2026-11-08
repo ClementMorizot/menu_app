@@ -1,9 +1,11 @@
 from uuid import UUID
 
 from psycopg import Connection
+from psycopg.errors import UniqueViolation
 from backend.domain.repositories import IngredientRepository
 from backend.domain.ingredient import Ingredient, NewIngredient
 from backend.domain.units import Unit
+from backend.domain.errors import IngredientNotFound, IngredientDuplicationError
 
 
 class SqlIngredientRepository(IngredientRepository):
@@ -77,49 +79,62 @@ class SqlIngredientRepository(IngredientRepository):
     def add_ingredient(self, new_ingredient: NewIngredient) -> Ingredient:
         unit_id = self._get_unit_id(new_ingredient.standard_unit)
 
-        with self._conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO ingredients (nom, unite_standard_id)
-                VALUES (%s, %s)
-                RETURNING id;
-                """,
-                (
-                    new_ingredient.name,
-                    unit_id,
-                ),
+        try :
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO ingredients (nom, unite_standard_id)
+                    VALUES (%s, %s)
+                    RETURNING id;
+                    """,
+                    (
+                        new_ingredient.name,
+                        unit_id,
+                    ),
+                )
+                row = cur.fetchone()
+
+            if row is None:
+                raise RuntimeError("INSERT failed: no id returned")
+
+            return Ingredient(
+                id=row[0],
+                name=new_ingredient.name,
+                standard_unit=new_ingredient.standard_unit,
             )
-            row = cur.fetchone()
 
-        if row is None:
-            raise RuntimeError("INSERT failed: no id returned")
-
-        return Ingredient(
-            id=row[0],
-            name=new_ingredient.name,
-            standard_unit=new_ingredient.standard_unit,
-        )
+        except UniqueViolation as e:
+            if e.diag.constraint_name == "ingredients_nom_key":
+                raise IngredientDuplicationError(new_ingredient.name) from e
+            else:
+                raise
 
     def update_ingredient(self, ingredient: Ingredient) -> None:
         unit_id = self._get_unit_id(ingredient.standard_unit)
 
-        with self._conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE ingredients
-                SET nom = %s,
-                    unite_standard_id = %s
-                WHERE id = %s;
-                """,
-                (
-                    ingredient.name,
-                    unit_id,
-                    ingredient.id,
-                ),
-            )
+        try:
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE ingredients
+                    SET nom = %s,
+                        unite_standard_id = %s
+                    WHERE id = %s;
+                    """,
+                    (
+                        ingredient.name,
+                        unit_id,
+                        ingredient.id,
+                    ),
+                )
 
-            if cur.rowcount == 0:
-                raise ValueError(f"Ingredient not found: {ingredient.id}")
+                if cur.rowcount == 0:
+                    raise IngredientNotFound(ingredient.id)
+        except UniqueViolation as e:
+            if e.diag.constraint_name == "ingredients_nom_key":
+                raise IngredientDuplicationError(ingredient.name) from e
+            else:
+                raise
 
     def delete_ingredient(self, ingredient_id: UUID) -> None:
         with self._conn.cursor() as cur:
@@ -132,4 +147,4 @@ class SqlIngredientRepository(IngredientRepository):
             )
 
             if cur.rowcount == 0:
-                raise ValueError(f"Ingredient not found: {ingredient_id}")
+                raise IngredientNotFound(ingredient_id)

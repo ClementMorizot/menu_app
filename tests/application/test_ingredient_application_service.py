@@ -7,6 +7,7 @@ from tests.fakes.fake_unit_of_work import FakeUnitOfWork
 from tests.fakes.fake_recipe_repository import FakeRecipeRepository
 from tests.fakes.fake_ingredient_repository import FakeIngredientRepository
 from tests.fakes.fake_recipe_ingredient_repository import FakeRecipeIngredientRepository
+from backend.domain.errors import IngredientNotFound, IngredientDuplicationError
 
 def test_list_ingredients_returns_all_ingredients():
     # Arrange
@@ -39,7 +40,6 @@ def test_list_ingredients_returns_all_ingredients():
     assert result == [tomato, flour]
     assert uow.committed is False
 
-
 def test_get_existing_ingredient_returns_ingredient():
     # Arrange
     ingredient = Ingredient(
@@ -71,7 +71,7 @@ def test_get_existing_ingredient_returns_ingredient():
     assert result == ingredient
     assert uow.committed is False
 
-def test_get_unknown_ingredient_returns_none():
+def test_get_unknown_ingredient_raises_error():
     # Arrange
     ingredient = Ingredient(
         id=uuid4(),
@@ -89,11 +89,10 @@ def test_get_unknown_ingredient_returns_none():
 
     service = IngredientApplicationService(lambda: uow)
 
-    # Act
-    result = service.get_ingredient(uuid4())
+    with pytest.raises(IngredientNotFound):
+        service.get_ingredient(uuid4())
 
     # Assert
-    assert result is None
     assert uow.committed is False
 
 def test_create_ingredient_adds_ingredient_and_commits():
@@ -121,6 +120,36 @@ def test_create_ingredient_adds_ingredient_and_commits():
     assert created.standard_unit == Unit.g
     assert ingredient_repository.find_by_id(created.id) == created
     assert uow.committed is True
+
+def test_create_duplicate_ingredient_raise_ingredientduplicationerror():
+    # Arrange
+    ingredient = Ingredient(
+            id=uuid4(),
+            name="Tomato",
+            standard_unit=Unit.g,
+        )
+    ingredient_repository = FakeIngredientRepository([ingredient])
+
+    uow = FakeUnitOfWork(
+        recipes=FakeRecipeRepository(),
+        ingredients=ingredient_repository,
+        recipe_ingredients=FakeRecipeIngredientRepository(),
+    )
+
+    service = IngredientApplicationService(lambda: uow)
+
+    new_ingredient = NewIngredient(
+        name="Tomato",
+        standard_unit=Unit.g,
+    )
+
+    # Act
+    with pytest.raises(IngredientDuplicationError):
+        service.create_ingredient(new_ingredient)
+
+    # Assert
+    assert uow.committed is False
+    assert uow.rolled_back is True
 
 def test_update_ingredient_modifies_ingredient_and_commits():
     # Arrange
@@ -158,7 +187,7 @@ def test_update_ingredient_modifies_ingredient_and_commits():
     assert ingredient_repository.find_by_id(ingredient2.id) == ingredient2
     assert uow.committed is True
 
-def test_update_unknown_ingredient_raises_valueerror():
+def test_update_unknown_ingredient_raises_ingredientnotfound():
     # Arrange
     ingredient1 = Ingredient(
                 id=uuid4(),
@@ -183,8 +212,39 @@ def test_update_unknown_ingredient_raises_valueerror():
 
     fake_ingredient = Ingredient(uuid4(),"Fake",Unit.unit)
     # Act
-    with pytest.raises(ValueError):
+    with pytest.raises(IngredientNotFound):
             service.update_ingredient(fake_ingredient)
+
+    assert uow.committed is False
+    assert uow.rolled_back is True
+
+def test_update_ducplicated_ingredient_name_raises_ingredientduplicationerror():
+    # Arrange
+    ingredient1 = Ingredient(
+                id=uuid4(),
+                name="Tomato",
+                standard_unit=Unit.g,
+            )
+    ingredient2 = Ingredient(
+                id=uuid4(),
+                name="Shrimp",
+                standard_unit=Unit.g,
+            )
+
+    ingredient_repository = FakeIngredientRepository([ingredient1, ingredient2])
+
+    uow = FakeUnitOfWork(
+        recipes=FakeRecipeRepository(),
+        ingredients=ingredient_repository,
+        recipe_ingredients=FakeRecipeIngredientRepository(),
+    )
+
+    service = IngredientApplicationService(lambda: uow)
+
+    failed_ingredient = Ingredient(ingredient1.id,ingredient2.name,Unit.unit)
+    # Act
+    with pytest.raises(IngredientDuplicationError):
+            service.update_ingredient(failed_ingredient)
 
     assert uow.committed is False
     assert uow.rolled_back is True
@@ -214,7 +274,7 @@ def test_delete_ingredient_deletes_ingredient_and_commits():
     assert ingredient_repository.find_by_id(ingredient.id) is None
     assert uow.committed is True
 
-def test_delete_unknown_ingredient_raises_valueerror():
+def test_delete_unknown_ingredient_raises_ingredientnotfound():
     # Arrange
     ingredient1 = Ingredient(
                 id=uuid4(),
@@ -238,7 +298,7 @@ def test_delete_unknown_ingredient_raises_valueerror():
     service = IngredientApplicationService(lambda: uow)
 
     # Act
-    with pytest.raises(ValueError):
+    with pytest.raises(IngredientNotFound):
             service.delete_ingredient(uuid4())
 
     assert uow.committed is False

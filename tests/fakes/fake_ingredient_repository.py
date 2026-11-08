@@ -1,6 +1,6 @@
 from backend.domain.ingredient import Ingredient, NewIngredient
 from uuid import UUID, uuid4
-
+from backend.domain.errors import IngredientNotFound, IngredientDuplicationError
 
 class FakeIngredientRepository:
     def __init__(self, ingredients: list[Ingredient] | None = None):
@@ -14,7 +14,7 @@ class FakeIngredientRepository:
 
     def add_ingredient(self, new_ingredient: NewIngredient) -> Ingredient:
         if new_ingredient in self._data.values():
-            raise ValueError("Ingredient already exists")
+            raise IngredientDuplicationError(new_ingredient.name)
         ingredient = Ingredient(
             id= uuid4(),
             name= new_ingredient.name,
@@ -25,12 +25,12 @@ class FakeIngredientRepository:
 
     def update_ingredient(self, ingredient: Ingredient) -> None:
         if ingredient.id not in self._data:
-            raise ValueError(f"Ingredient not found: {ingredient.id}")
+            raise IngredientNotFound(ingredient.id)
         self._data[ingredient.id] = ingredient
 
     def delete_ingredient(self, ingredient_id: UUID) -> None:
         if ingredient_id not in self._data:
-            raise ValueError(f"Ingredient not found: {ingredient_id}")
+            raise IngredientNotFound(ingredient_id)
         del self._data[ingredient_id]
 
 class FailingIngredientRepository:

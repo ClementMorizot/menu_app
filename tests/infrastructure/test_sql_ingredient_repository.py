@@ -1,12 +1,10 @@
 from uuid import uuid4
-
 import pytest
-
 import backend.infrastructure.db_connection as db_connect
 from backend.domain.ingredient import Ingredient, NewIngredient
 from backend.domain.units import Unit
 from backend.infrastructure.sql_ingredient_repository import SqlIngredientRepository
-
+from backend.domain.errors import IngredientNotFound, IngredientDuplicationError
 
 @pytest.fixture
 def conn():
@@ -19,15 +17,12 @@ def conn():
         connection.rollback()
         connection.close()
 
-
 @pytest.fixture
 def repository(conn):
     return SqlIngredientRepository(conn)
 
-
 def unique_name(prefix: str) -> str:
     return f"{prefix}_{uuid4()}"
-
 
 def insert_ingredient(conn, name: str, unit: Unit) :
     ingredient_id = uuid4()
@@ -54,7 +49,6 @@ def insert_ingredient(conn, name: str, unit: Unit) :
 
     return row[0]
 
-
 def test_list_ingredients_returns_inserted_ingredients(repository, conn):
     # Arrange
     tomato_name = unique_name("Tomate")
@@ -79,7 +73,6 @@ def test_list_ingredients_returns_inserted_ingredients(repository, conn):
         standard_unit=Unit.mL,
     ) in ingredients
 
-
 def test_find_by_id_returns_correct_ingredient(repository, conn):
     # Arrange
     name = unique_name("Farine")
@@ -95,7 +88,6 @@ def test_find_by_id_returns_correct_ingredient(repository, conn):
         standard_unit=Unit.g,
     )
 
-
 def test_find_by_id_returns_none_when_id_not_found(repository):
     # Arrange
     unknown_id = uuid4()
@@ -105,7 +97,6 @@ def test_find_by_id_returns_none_when_id_not_found(repository):
 
     # Assert
     assert ingredient is None
-
 
 def test_add_ingredient_correctly_adds_ingredient_to_base(repository, conn):
     # Arrange
@@ -142,6 +133,19 @@ def test_add_ingredient_correctly_adds_ingredient_to_base(repository, conn):
     assert created_ingredient.name == name
     assert created_ingredient.standard_unit == Unit.g
 
+def test_create_duplicate_ingredient_raises_ingredientduplicationerror(repository):
+    # Arrange
+    name = unique_name("Riz")
+
+    new_ingredient = NewIngredient(
+        name=name,
+        standard_unit=Unit.g,
+    )
+
+    # Act
+    repository.add_ingredient(new_ingredient)
+    with pytest.raises(IngredientDuplicationError):
+        repository.add_ingredient(new_ingredient)
 
 def test_update_ingredient_correctly_updates_ingredient_in_base(repository, conn):
     # Arrange
@@ -179,7 +183,6 @@ def test_update_ingredient_correctly_updates_ingredient_in_base(repository, conn
         Unit.kg.value,
     )
 
-
 def test_update_ingredient_raises_error_when_id_not_found(repository):
     # Arrange
     unknown_ingredient = Ingredient(
@@ -189,9 +192,25 @@ def test_update_ingredient_raises_error_when_id_not_found(repository):
     )
 
     # Act / Assert
-    with pytest.raises(ValueError, match="Ingredient not found"):
+    with pytest.raises(IngredientNotFound):
         repository.update_ingredient(unknown_ingredient)
 
+def test_update_ingredient_raises_ingredientduplicationerror_on_duplicated_name(repository, conn):
+    # Arrange
+    original_name = unique_name("Sucre")
+    updated_name = unique_name("Sucre_blanc")
+
+    ingredient_id = insert_ingredient(conn, name=original_name, unit=Unit.g)
+    insert_ingredient(conn, name=updated_name, unit=Unit.g)
+    updated_ingredient = Ingredient(
+        id=ingredient_id,
+        name=updated_name,
+        standard_unit=Unit.kg,
+    )
+
+    # Act
+    with pytest.raises(IngredientDuplicationError):
+        repository.update_ingredient(updated_ingredient)
 
 def test_delete_ingredient_correctly_deletes_ingredient_in_base(repository, conn):
     # Arrange
@@ -215,11 +234,10 @@ def test_delete_ingredient_correctly_deletes_ingredient_in_base(repository, conn
 
     assert row is None
 
-
 def test_delete_ingredient_raises_error_when_id_not_found(repository):
     # Arrange
     unknown_id = uuid4()
 
     # Act / Assert
-    with pytest.raises(ValueError, match="Ingredient not found"):
+    with pytest.raises(IngredientNotFound):
         repository.delete_ingredient(unknown_id)
