@@ -51,8 +51,8 @@ def insert_ingredient(conn, name: str, unit: Unit) :
 
 def test_list_ingredients_returns_inserted_ingredients(repository, conn):
     # Arrange
-    tomato_name = unique_name("Tomate")
-    milk_name = unique_name("Lait")
+    tomato_name = unique_name("Tomato")
+    milk_name = unique_name("Milk")
 
     tomato_id = insert_ingredient(conn, name=tomato_name, unit=Unit.g)
     milk_id = insert_ingredient(conn, name=milk_name, unit=Unit.mL)
@@ -75,7 +75,7 @@ def test_list_ingredients_returns_inserted_ingredients(repository, conn):
 
 def test_find_by_id_returns_correct_ingredient(repository, conn):
     # Arrange
-    name = unique_name("Farine")
+    name = unique_name("Flour")
     ingredient_id = insert_ingredient(conn, name=name, unit=Unit.g)
 
     # Act
@@ -100,7 +100,7 @@ def test_find_by_id_returns_none_when_id_not_found(repository):
 
 def test_add_ingredient_correctly_adds_ingredient_to_base(repository, conn):
     # Arrange
-    name = unique_name("Riz")
+    name = unique_name("Rice")
 
     new_ingredient = NewIngredient(
         name=name,
@@ -135,7 +135,7 @@ def test_add_ingredient_correctly_adds_ingredient_to_base(repository, conn):
 
 def test_create_duplicate_ingredient_raises_ingredientduplicationerror(repository):
     # Arrange
-    name = unique_name("Riz")
+    name = unique_name("Rice")
 
     new_ingredient = NewIngredient(
         name=name,
@@ -149,8 +149,8 @@ def test_create_duplicate_ingredient_raises_ingredientduplicationerror(repositor
 
 def test_update_ingredient_correctly_updates_ingredient_in_base(repository, conn):
     # Arrange
-    original_name = unique_name("Sucre")
-    updated_name = unique_name("Sucre_blanc")
+    original_name = unique_name("Sugar")
+    updated_name = unique_name("Brown_sugar")
 
     ingredient_id = insert_ingredient(conn, name=original_name, unit=Unit.g)
 
@@ -197,8 +197,8 @@ def test_update_ingredient_raises_error_when_id_not_found(repository):
 
 def test_update_ingredient_raises_ingredientduplicationerror_on_duplicated_name(repository, conn):
     # Arrange
-    original_name = unique_name("Sucre")
-    updated_name = unique_name("Sucre_blanc")
+    original_name = unique_name("Sugar")
+    updated_name = unique_name("Brown_sugar")
 
     ingredient_id = insert_ingredient(conn, name=original_name, unit=Unit.g)
     insert_ingredient(conn, name=updated_name, unit=Unit.g)
@@ -214,7 +214,7 @@ def test_update_ingredient_raises_ingredientduplicationerror_on_duplicated_name(
 
 def test_delete_ingredient_correctly_deletes_ingredient_in_base(repository, conn):
     # Arrange
-    name = unique_name("Beurre")
+    name = unique_name("Butter")
     ingredient_id = insert_ingredient(conn, name=name, unit=Unit.g)
 
     # Act
